@@ -688,6 +688,7 @@ function runSunriseExport() {
     $pw = $sunriseCredentials[0]["Password"]
     $sunriseExportToolFolder = "$conv_ledgerFolder\boa-sunrise-export"
     start "$sunriseExportToolFolder\SunriseExport.exe"
+    #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 500
     Set-Location -Path $executionFolder
     auditAutomationTool -procName "SunriseExport" -controlId cbxSunriseURL -controlValue "Production Proxy" 
@@ -706,6 +707,7 @@ function runAuditTools() {
     $svuAuditToolFoler = "$conv_ledgerFolder\boa-svu-audit"
     Set-Location -Path $svuAuditToolFoler
     start "$svuAuditToolFoler\SvuAudit.exe"
+    #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 500
     Set-Location -Path $executionFolder
     auditAutomationTool -procName "SvuAudit" -controlId txtOpportunityFile -controlValue "$conv_ledgerFolder\Raw data\$conv_SVUListingFile" 
@@ -717,6 +719,7 @@ function runAuditTools() {
 
     $sunriseAuditToolFolder = "$conv_ledgerFolder\boa-sunrise-audit"
     start "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
+    #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 500
     Set-Location -Path $executionFolder
     $outputFileFromSunriseExport = Get-ChildItem "$conv_ledgerFolder\boa-sunrise-export\Output" | Sort {$_.LastWriteTime} | select -last 1
