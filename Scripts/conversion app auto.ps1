@@ -1,12 +1,12 @@
 ﻿Param(
-    [string]$task = 'step3-config'
+    [string]$task = 'step13-runsvuaudit'
 )
 
 # global variables #
 $executionFolder = Split-Path $MyInvocation.MyCommand.Path
 #path to msbuild, use for auto build
 Set-Alias msbuild "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"
-<# Set-Alias nuget "" #>
+Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
 
 #THE LEDGER BEING MIGRATE
 $LEDGER = "Osman"
@@ -17,6 +17,7 @@ $CONFIG_AUDIT_LISTING_FILE = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_PASSWORD = "FUCKINGTEST"
+$conv_SVUListingFile = "AuditPolicyList.OSMAN_HQ.2018-10-25.csv"
 
 #local working folder (in your development machine), if is current path, must be set to ".\"
 $local_workingFolder = "d:\conversion_auto\$LEDGER"
@@ -29,16 +30,23 @@ $local_svuAuditRootPath = 'D:\sfg-repos\boa-svu-audit'
 
 #conversion machine paths
 $conv_ledgerName = $LEDGER
-$conv_ledgerFolder = $local_workingFolder #test path on local machine
-#$conv_ledgerFolder = "F:\$conv_ledgerName" #real path in conversion machine
+
+#$conv_ledgerFolder = $local_workingFolder #test path on local machine
+
+$conv_ledgerFolder = "F:\$conv_ledgerName" #real path in conversion machine
 $conv_appSourceFolder = $conv_ledgerFolder
+$conv_automationReportsFolder = "$conv_ledgerFolder\automation_reports"
 $conv_automationBackupFolder = $conv_ledgerFolder + "\automation_backups"
 $conv_defaultDatabaseBackupFolder = "$conv_automationBackupFolder\database"
 $conv_changeCollationSqlScriptPath = "$conv_ledgerFolder\Change_Collation.sql"
 $conv_copyCustomConfigScriptPath = "$conv_ledgerFolder\Copy_Custom_Config.cmd"
-$conv_ledger_db_backup = "$conv_ledgerFolder\Raw Data\$conv_ledgerName.bak" #"F:\DKM.Services\Database scripts\2792018.bak"
+$conv_ledger_db_backup = "$conv_ledgerFolder\Raw Data\Osman2_20181012.bak"
 $conv_ledger_db = $conv_ledgerName
 $conv_ledger_insight_db = "$conv_ledgerName" + "Insight"
+
+$conv_preUploadReportsFolder = "$conv_ledgerFolder\Run1\PreUploadReports\Results"
+$conv_postConversionDataVerificationReportsForConsultantFolder = "$conv_ledgerFolder\Run1\PostConversionDataVerificationsReports\ForConsultant"
+$conv_recordCountReportsFolder = "$conv_ledgerFolder\Run1\Record Counts"
 
 #utility variables
 $color_info = 'green'
@@ -63,6 +71,8 @@ function printUsage() {
     wh "`t(conv)step10-changecollation"
     wh "`t(conv)step11-copycreateinsightdbscript"
     wh "`t(conv)step12-createinsightdb"
+    wh "`t(conv)step13-runsvuaudit"
+    wh "`t(conv)step14-preparereports"
 }
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -121,6 +131,16 @@ function main() {
         createInsightDb
     }
     
+    if($task -eq "step13-runsvuaudit")
+    {
+        runAuditTools
+    }
+
+    if($task -eq "step14-preparereports")
+    {
+        prepareReports
+    }
+
     if ($task -eq 'rs-backupblobsfolder') {
         backupBlobsFolder
     }
@@ -170,7 +190,7 @@ function zipFileIntoFolder ($folder, $sourcePath, $destinationPath) {
 function extractFileIntoFolder($sourcePath, $destinationPath) {
     if (!(Test-Path -Path $sourcePath)) {
         Write-Host $sourcePath ' is not found'
-        exit 0 
+        return 
     }
     if (Test-Path $destinationPath) {
         if ((Get-ChildItem $destinationPath | Measure-Object).count -ne 0) {
@@ -254,14 +274,29 @@ function buildSolution($solutionPath, $buildMode) {
     }
     wh "Build $solutionPath successfully"
 }
-
 function buildSolutions()
 {
-    buildSolution  "$local_conversionRootPath\DatabaseConversion.sln" "Debug"
     buildSolution  "$local_sunriseAuditRootPath\boa-sunrise-audit.sln" "Debug"
     buildSolution  "$local_sunriseExportRootPath\SunriseExport.sln" "Debug"
     buildSolution  "$local_svuAuditRootPath\SvuAudit.sln" "Debug"
+    buildSolution  "$local_conversionRootPath\DatabaseConversion.sln" "Debug"
 }
+function getConfigValue($appconfigFilePath, $xpath, $attribute)
+{
+    $appConfig = New-Object Xml
+    $appConfig.Load($appConfigFilePath)
+        foreach ($config in $appConfig.SelectNodes($xpath)) {
+            if ($config.Attributes) {
+                $att = $config.Attributes[$attribute]
+                if ($att)
+                {
+                    return $att.Value
+                }
+            }
+    }
+    return ""
+}
+
 #backup database 
 function backupDb($dbName, $folder) {
     if (!(checkDbExist $dbName)) {
@@ -637,6 +672,74 @@ function createInsightDb() {
     else {
         wh "There was an issue occured: policies table already contains values" $color_error
     }
+}
+
+#run audit tools
+function runSunriseExport()
+{
+    $query = "select top 1 * from $conv_ledger_db..[SunriseServer] where code = 'INSNET'"
+    $sunriseCredentials = @(@(Invoke-Sqlcmd -ServerInstance '.' -Query $query))
+    if($($sunriseCredentials.Count) -eq 0)
+    {
+        $query = "select top 1 * from $conv_ledger_insight_db..[sunrise_server_codes] where sunserco_name = 'INSNET'"
+        $sunriseCredentials = @(@(Invoke-Sqlcmd -ServerInstance '.' -Query $query))
+    }
+    $un = $sunriseCredentials[0]["Login"]
+    $pw = $sunriseCredentials[0]["Password"]
+    $sunriseExportToolFolder = "$conv_ledgerFolder\boa-sunrise-export"
+    start "$sunriseExportToolFolder\SunriseExport.exe"
+    Start-Sleep -Milliseconds 500
+    Set-Location -Path $executionFolder
+    auditAutomationTool -procName "SunriseExport" -controlId cbxSunriseURL -controlValue "Production Proxy" 
+    auditAutomationTool -procName "SunriseExport" -controlId cbxVersion -controlValue "Latest version only" 
+    auditAutomationTool -procName "SunriseExport" -controlId txtSunriseUsername -controlValue "$un" 
+    auditAutomationTool -procName "SunriseExport" -controlId txtSunrisePassword -controlValue "$pw" 
+}
+function runAuditTools()
+{
+    $azureInsightDbConnString = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomConnectionStrings.config" 'connectionStrings/add[@name="DestinationDatabase"]' "connectionString"
+    $svuAuditToolFoler = "$conv_ledgerFolder\boa-svu-audit"
+    Set-Location -Path $svuAuditToolFoler
+    start "$svuAuditToolFoler\SvuAudit.exe"
+    Start-Sleep -Milliseconds 500
+    Set-Location -Path $executionFolder
+    auditAutomationTool -procName "SvuAudit" -controlId txtOpportunityFile -controlValue "$conv_ledgerFolder\Raw data\$conv_SVUListingFile" 
+    auditAutomationTool -procName "SvuAudit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
+
+    Start-Sleep 30
+    runSunriseExport
+    Start-Sleep 30
+    $sunriseAuditToolFolder = "$conv_ledgerFolder\boa-sunrise-audit"
+    start "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
+    Start-Sleep -Milliseconds 500
+    Set-Location -Path $executionFolder
+    $outputFileFromSunriseExport = Get-ChildItem "$conv_ledgerFolder\boa-sunrise-export\Output" | Sort {$_.LastWriteTime} | select -last 1
+    auditAutomationTool -procName "boa-sunrise-audit" -controlId txtPolicyFile -controlValue "$($outputFileFromSunriseExport.FullName)" 
+    auditAutomationTool -procName "boa-sunrise-audit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
+}
+
+function prepareReports()
+{
+    createFolderIfNotExists $conv_automationReportsFolder
+    #copy pre upload reports to automation reports folder 
+    Copy-Item -Path "$conv_preUploadReportsFolder\*" -Destination "$conv_automationReportsFolder\PreUploadReports" -Force
+
+    #copy post conversion data verification reports to automation reports folder
+    Copy-Item -Path "$conv_postConversionDataVerificationReportsForConsultantFolder\*" -Destination "$conv_automationReportsFolder\PostConversionDataVerificationsReports" -Force
+
+    #copy svu audit result to automation reports folder 
+    $svuAuditResult = Get-ChildItem "$conv_ledgerFolder\boa-svu-audit\Output" | Sort {$_.LastWriteTime} | select -last 1
+    Copy-Item -Path "$($svuAuditResult.FullName)" -Destination "$conv_automationReportsFolder" -Force
+
+    #copy sunrise audit result to automation reports folder
+    $sunriseAuditResult = Get-ChildItem "$conv_ledgerFolder\boa-sunrise-audit\Output" | Sort {$_.LastWriteTime} | select -last 1
+    Copy-Item -Path "$($sunriseAuditResult.FullName)" -Destination "$conv_automationReportsFolder" -Force
+
+    #copy records count reports to automation reports folder 
+    Copy-Item -Path "$conv_ledgerFolder\Run1\Record Counts" -Destination "$conv_automationReportsFolder" -Force
+    Copy-Item -Path "$conv_ledgerFolder\Run1\Conversion Record Counts.xlsx" -Destination "$conv_automationReportsFolder" -Force
+    Copy-Item -Path "$conv_ledgerFolder\Run1\PreConversionRecordCount.txt" -Destination "$conv_automationReportsFolder" -Force
+    Copy-Item -Path "$conv_ledgerFolder\Run1\PostConversionRecordCount.txt" -Destination "$conv_automationReportsFolder" -Force
 }
 
 ### RUNSHEET FUNCTIONS ###
