@@ -1,0 +1,71 @@
+1. (xài tay)fucking pull latest code, then fucking build console app and all the related tools
+(sunrise audit, svu audit, sunrise export,...)
+
+2. (xài script)zip all the source code output(bin/debug), then fucking copy them to conversion machine
+
+3. (xài script)tạo 1 đống folder (Admin, Raw data) nếu chưa có
+
+	3.1 (xài tay)copy file audit bỏ vào folder Raw data, file audit này will be fucking received from Geoff,
+	có khả năng file cờ hó này sẽ lỗi, do dư columns, mở file cũ ra so sánh coi dư cột nào xóa cột đó,
+	format date theo yyyy-mm-dd hh:mm:ss
+	
+4. (xài script)restore ledger database
+
+5. (xài script - xài mắt)change collation nếu cần thiết
+
+6. (xài script - xài tay)copy create insight db script từ build machine, bỏ vô folder Admin
+
+7. (xài script - xài tay)mở ssms, chạy script mới copy từ (6)
+
+8. (xài script)tạo folder backup source code cũ (yyyymmdd) nếu đây là lần chạy thứ n (n > 1)
+
+9. (xài script)chạy file Delete_FIles_Except_Logs.cmd để xóa, cái tên nói lên hết cmnr
+
+10. (xài script - xài mắt - xài tay)mở all files config trong mấy cái folder dạng *.Config, xong 
+fucking use your eyes and hands to copy/paste config into each file
+
+11. (xài script)chạy file copy_custom_config.cmd để apply custom config vô config thật
+
+	11.1 (xài script)kiểm tra config lại lần nữa 
+	
+12. (xài script)Rename Run1 thành cái éo gì đó (Run1_yyyymmdd) nếu đây là lần chạy thứ n (n > 1)
+
+13. (xài script)kiểm tra folder SiteSpecific cho ledger đang chạy, nếu có script nào cần replace trong FullExtract thì replace, 
+script nào là Preconsoleapp thì chạy nó
+
+14. (xài tay - xài mắt)fucking run console app
+
+15. (xài tay - xài mắt)fucking run azure import blobs (yes/no)
+
+16. (fucking xài mắt)check errors (Run1/...Log, AzureImportBlobs/Logs/...Log)
+
+17. (fucking xài tay)chạy SVU audit tool, file listing là file list ông nội Geoff đưa mình, đã bỏ vào 
+Raw data ở step (3), conn string là connection string tới insight db TRÊN AZURE (tìm trong console app có),
+chạy script ở step (11.1) để mở file configs lên cho nhanh, sau đó fucking copy/paste
+
+18. (fucking xài tay)chạy Sunrise export, mở cái link repo lên có guide
+https://bitbucket.org/steadfasttech/boa-sunrise-export/src/master/ 
+
+19. (fucking xài tay)chạy Sunrise audit, listing file là file output của step (18 - Sunrise export),
+conn string là connection string của insight db TRÊN AZURE (step 17 có)
+
+20. (fucking xài tay)copy output của (17) & (19) về local
+21. (fucking xài tay)vào Run1 > PostConversionDataVerificationsReports > ForConsultant copy hết đống này về local, zip lại
+22. (fucking xài tay)vào Run1 > PreUploadReports > Results copy hết đống này về local, zip lại
+23. (fucking xài tay) zip hết đống (20, 21, 22) lại thành 1 file
+
+24. (fucking xài tay) chạy DataCountChecker
+
+25. (fucking xài tay) mở file Run1>Conversion Record Counts.xlsx, mở output của (23), fucking copy/paste vô 3 columns
+
+26. (fucking xài tay) update file Build Time.xlsx, làm cái đéo gì trong bao lâu ghi vô
+
+27. (fucking xài tay) zip file from (25, 26) lại thành 1 file
+
+28. (fucking xài your fucking hands) update jira runsheet, mark completed, implemented by, at date
+
+29. (fucking xài your fucking hands) update jira ticket, comment vô file report from (24) cho ông Stephen
+30. (fucking xài your fucking hands) update jira ticket, comment vô file from (27) cho ông Geoff
+31. (fucking xài tay) update jira ticket, sửa cái dấu chấm than thành dấu tick (sửa (-) thành (/)) phía trên description
+							
+							--- FUCKING END THIS FUCKING ASSHOLE BORING TASK ---
