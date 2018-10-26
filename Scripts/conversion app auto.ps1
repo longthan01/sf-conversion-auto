@@ -8,8 +8,12 @@ $executionFolder = Split-Path $MyInvocation.MyCommand.Path
 Set-Alias msbuild "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"
 Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
 
+### FILL OUT THE FOLOWWING VARIABLES BEFORE RUN THE SCRIPT ###
 #THE LEDGER BEING MIGRATE
-$LEDGER = "Osman"
+$LEDGER = "Covercorp"
+
+$conv_ledgerName = $LEDGER
+#$conv_ledgerFolder = "F:\$conv_ledgerName" #real path in conversion machine
 
 $CONFIG_AZURE_BLOB_STORAGE_ACCOUNT = "FUCKINGTEST"
 $CONFIG_AZURE_BLOB_STORAGE_KEY = "FUCKINGTEST"
@@ -17,35 +21,34 @@ $CONFIG_AUDIT_LISTING_FILE = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_PASSWORD = "FUCKINGTEST"
-$conv_SVUListingFile = "AuditPolicyList.OSMAN_HQ.2018-10-25.csv"
+$conv_SVUListingFile = "Final Data\AuditPolicyList.COVERCORP_HQ.2018-10-26.csv"
 
 #local working folder (in your development machine), if is current path, must be set to ".\"
 $local_workingFolder = "d:\conversion_auto\$LEDGER"
 
-#path to your repo folders
-$local_conversionRootPath = 'D:\sfg-repos\insight_data_conversion\boa-data-conversion'
-$local_sunriseAuditRootPath = 'D:\sfg-repos\boa-sunrise-audit'
-$local_sunriseExportRootPath = 'D:\sfg-repos\boa-sunrise-export'
-$local_svuAuditRootPath = 'D:\sfg-repos\boa-svu-audit'
-
-#conversion machine paths
-$conv_ledgerName = $LEDGER
-
 $conv_ledgerFolder = $local_workingFolder #test path on local machine
 
-#$conv_ledgerFolder = "F:\$conv_ledgerName" #real path in conversion machine
+$conv_ledger_db_backup_path = "$conv_ledgerFolder\Raw Data\Melbourne.bak"
+### -------------------------------------------------- ###
+
+#path to your repo folders
+$local_conversionRootPath = "D:\sfg-repos\insight_data_conversion\boa-data-conversion"
+$local_sunriseAuditRootPath = "D:\sfg-repos\boa-sunrise-audit"
+$local_sunriseExportRootPath = "D:\sfg-repos\boa-sunrise-export"
+$local_svuAuditRootPath = "D:\sfg-repos\boa-svu-audit"
+
+#conversion machine paths
 $conv_appSourceFolder = $conv_ledgerFolder
 $conv_automationReportsFolder = "$conv_ledgerFolder\automation_reports"
 $conv_automationBackupFolder = $conv_ledgerFolder + "\automation_backups"
 $conv_defaultDatabaseBackupFolder = "$conv_automationBackupFolder\database"
 $conv_changeCollationSqlScriptPath = "$conv_ledgerFolder\Change_Collation.sql"
 $conv_copyCustomConfigScriptPath = "$conv_ledgerFolder\Copy_Custom_Config.cmd"
-$conv_ledger_db_backup_path = "$conv_ledgerFolder\Raw Data\Osman2_20181012.bak"
 
 $conv_ledger_db = $conv_ledgerName
 $conv_ledger_insight_db = "$conv_ledgerName" + "Insight"
 
-$conv_preUploadReportsFolder = "f:\t" # "$conv_ledgerFolder\Run1\PreUploadReports\Results"
+$conv_preUploadReportsFolder = "$conv_ledgerFolder\Run1\PreUploadReports\Results"
 $conv_postConversionDataVerificationReportsForConsultantFolder = "$conv_ledgerFolder\Run1\PostConversionDataVerificationsReports\ForConsultant"
 $conv_recordCountReportsFolder = "$conv_ledgerFolder\Run1\Record Counts"
 
@@ -60,23 +63,23 @@ $color_error = 'red'
 function printUsage() {
     wh "Params:"
     wh "-task"
-    wh "`t(runsheet)rs-backupblobsfolder"
+    wh "(runsheet)rs-backupblobsfolder"
     wh
-    wh "`t(conv)step0-pullcode"
-    wh "`t(dev)step1-build"
-    wh "`t(conv)step2-prepare"
-    wh "`t(conv)step3-zip"
-    wh "`t(conv)step4-extract"
-    wh "`t(conv)step5-config"
-    wh "`t(conv)step6-checkconfig"
-    wh "`t(build)step7-applyconfig"
-    wh "`t(conv)step8-recheckconfig"
-    wh "`t(conv)step9-restoreledgerdb"
-    wh "`t(conv)step10-changecollation"
-    wh "`t(conv)step11-copycreateinsightdbscript"
-    wh "`t(conv)step12-createinsightdb"
-    wh "`t(conv)step13-runaudittools"
-    wh "`t(conv)step14-preparereports"
+    wh "(conv)step0-pullcode"
+    wh "(dev)step1-build"
+    wh "(conv)step2-prepare"
+    wh "(conv)step3-zip"
+    wh "(conv)step4-extract"
+    wh "(conv)step5-config"
+    wh "(conv)step6-checkconfig"
+    wh "(build)step7-applyconfig"
+    wh "(conv)step8-recheckconfig"
+    wh "(conv)step9-restoreledgerdb"
+    wh "(conv)step10-changecollation"
+    wh "(conv)step11-copycreateinsightdbscript"
+    wh "(conv)step12-createinsightdb"
+    wh "(conv)step13-runaudittools"
+    wh "(conv)step14-preparereports"
 }
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -92,61 +95,79 @@ function main() {
         printUsage
     }
     if ($task -eq 'step0-pullcode') {
+        wh "Get latest codes from upstream master"
         pullLatestCode
     }
     if ($task -eq 'step1-build') {
+        wh "Build conversion and related tools"
         buildSolutions
     }
     if ($task -eq 'step2-prepare') {
+        wh "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"
         prepareConvEnvironment
     }
 
     if ($task -eq 'step3-zip') {
+        wh "Archive the conversion and related tools to $local_workingFolder"
         archive
     }
    
     if ($task -eq 'step4-extract') {
+        wh "Extract the conversion and related tools to $conv_ledgerFolder"
         extract
     }
     
     if ($task -eq 'step5-config') {
+        wh "Read the CONFIG_ variables, then replace it from the custom config file placeholders"
         config
     }
     
     if ($task -eq 'step6-checkconfig') {
+        wh "Open custom config files to check whether your configurations are fucking right"
         checkConfig
     }
 
     if ($task -eq 'step7-applyconfig') {
+        wh "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"
         applyConfig
     }
     if ($task -eq 'step8-recheckconfig') {
+        wh "Open main config files and fucking re-check them by your fucking eyes"
         recheckConfig
     }
     if ($task -eq 'step9-restoreledgerdb') {
+        wh "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"
         restoreLedgerDb
     }
     if ($task -eq 'step10-changecollation') {
+        wh "Check if the $conv_ledger_db has the right collation, if it's not, open the change collation script in ssms"
+        wh "then you need to run it by your fucking hands"
         changeCollationLedgerDb
     }
     
     if ($task -eq 'step11-copycreateinsightdbscript') {
+        wh "Copy Insight database creation script, this function basically copy out the path to script folder to clipboard"
+        wh "You need to open build machine then paste it to windows explorer to open the folder then copy the latest script by your fucking hands"
         copyInsightCreationScript
     }
 
     if ($task -eq 'step12-createinsightdb') {
+        wh "Create $($conv_ledgerName + "Insight") database, if the db is already existed, backup it to $conv_automationBackupFolder"
         createInsightDb
     }
     
     if ($task -eq "step13-runaudittools") {
+        wh "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"
         runAuditTools
     }
 
     if ($task -eq "step14-preparereports") {
+        wh "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count reports to automation_reports folder"
         prepareReports
     }
 
     if ($task -eq 'rs-backupblobsfolder') {
+        wh "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"
         backupBlobsFolder
     }
 }
@@ -175,7 +196,7 @@ function zipFileIntoFolder ($folder, $sourcePath, $destinationPath) {
         if (Test-Path -path $destinationPath) {
             # if root folder is existed, delete all of it's items
             Write-Host
-            wh "`t[!] '$destinationPath' folder is existing, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 1
+            wh "[!] '$destinationPath' folder is existing, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 1
             Write-Host
             $confirm = Read-Host
             if ($confirm -eq 'y') {
@@ -194,13 +215,13 @@ function zipFileIntoFolder ($folder, $sourcePath, $destinationPath) {
 }
 function extractFileIntoFolder($sourcePath, $destinationPath) {
     if (!(Test-Path -Path $sourcePath)) {
-        Write-Host $sourcePath ' is not found'
+        wh "[!]$sourcePath not found" $color_warning
         return 
     }
     if (Test-Path $destinationPath) {
         if ((Get-ChildItem $destinationPath | Measure-Object).count -ne 0) {
             Write-Host
-            wh "`t[!] '$destinationPath 'is not empty, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 0
+            wh "[!] '$destinationPath 'is not empty, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 0
             Write-Host
             $confirm = Read-Host
             if ($confirm -eq 'y') {
@@ -347,6 +368,14 @@ function wh($value = "", $color = $color_info, $newLine = 1) {
     if ([string]::IsNullOrEmpty($value)) {
         Write-Host
     }
+    if($color -eq $color_warning)
+    {
+        $value = "    [!] " + $value
+    }
+    if($color -eq $color_error)
+    {
+        $value = "    [x] " + $value
+    }
     if ($newLine -eq 1) {
         Write-Host $value -ForegroundColor $color
     }
@@ -367,7 +396,7 @@ function checkDbExist($dbName) {
     OR name = '$dbName'
 "@
     wh "Checking database existing with query"
-    Write-Host "`t$checkDbExistQuery"
+    Write-Host "$checkDbExistQuery"
     $dbExistRows = @(Invoke-Sqlcmd  -ServerInstance '.' -Query $checkDbExistQuery -QueryTimeout 900)
     if ($dbExistRows.Count -eq 0) {
         return $false
@@ -427,6 +456,8 @@ function extract() {
     extractFileIntoFolder "$conv_appSourceFolder\boa-sunrise-export.zip" "$conv_ledgerFolder\boa-sunrise-export"
     # extract svu audit app
     extractFileIntoFolder "$conv_appSourceFolder\boa-svu-audit.zip" "$conv_ledgerFolder\boa-svu-audit"
+    #extract the config templates
+    extractFileIntoFolder "$conv_appSourceFolder\appconfig_template.zip" "$conv_ledgerFolder"
 }
 
 #config for each *.config file for a fucking bunch of projects
@@ -460,8 +491,8 @@ function setConfigs($appConfigFilePath, $configHashArray) {
     $appConfig.Save($appConfigFilePath)
 }
 function config() {
-    wh "`t[!] We will config app and connection string settings for a bunch of apps" $color_warning
-    wh "`t[!] if this is the n-th run (n > 1), this step shouldn't be performed, fucking confirm to continue (y/n)? default is [n]" $color_warning
+    wh "[!] We will config app and connection string settings for a bunch of apps" $color_warning
+    wh "[!] if this is the n-th run (n > 1), this step shouldn't be performed, fucking confirm to continue (y/n)? default is [n]" $color_warning
     $confirm = Read-Host
     if ($confirm -eq "y") {
         $hashConfigurations = @(
@@ -490,7 +521,7 @@ function checkConfig() {
     Set-Location $conv_ledgerFolder
     $configFiles = @((Get-ChildItem -Path '*.Config' -Include "*.config").FullName)
     foreach ($f in $configFiles) {
-        Write-Host "`t$f"
+        Write-Host "$f"
     }
     wh "There are $($configFiles.Count) config files, now open all of it to check each settings"
     foreach ($f in $configFiles) {
@@ -513,13 +544,13 @@ function recheckConfig() {
     Set-Location $conv_ledgerFolder
     $folders = @((Get-ChildItem -Exclude "*.Config" | Where-Object {$_.PSIsContainer}).FullName)
     foreach ($d in $folders) {
-        Write-Host "`t$d"
+        Write-Host "$d"
         $configFiles = @((Get-ChildItem -Path $d -File -Filter "Custom*.config").FullName)
         if ($configFiles.Length -ne 0) {
-            wh "`t$d contains $($configFiles.Length) files, now open all of it"
+            wh "$d contains $($configFiles.Length) files, now open all of it"
             foreach ($f in $configFiles) {
                 if (![string]::IsNullOrEmpty($f)) {
-                    Write-Host "`t`t$f"
+                    Write-Host "$f"
                     Start-Process notepad++ $f
                 }
                 else {
@@ -536,32 +567,41 @@ function recheckConfig() {
 #next, restore ledger database to conversion machine with name the same as ledger's name
 #for example, if ledger is Melbourne, now restore to database Melbourne
 function restoreDb($backupFile, $dbName) {
-    $dataDefaultPath = getSqlDefaultPath 'Data'
-    $logDefaultPath = getSqlDefaultPath 'Log'
-    $logicalNames = retrieveDatabaseLogicalNames $backupFile
-    $restoreQuery = @"
-    USE [master]
-    RESTORE DATABASE [$conv_ledger_db] FROM  DISK = N'$backupFile' WITH  FILE = 1,  
-    MOVE N'$($logicalNames.data)' TO N'$($dataDefaultPath + $conv_ledger_db + ".mdf")',  
-    MOVE N'$($logicalNames.log)' TO N'$($logDefaultPath + $conv_ledger_db + "_Log.ldf")',  
-    NOUNLOAD,
-    REPLACE,
-    STATS = 5
+    $bakFile = $(Split-Path $backupFile -Leaf).Replace(".bak","")
+    if($bakFile -ne $dbName)
+    {
+        wh "The backup file $backupFile IS NOT THE SAME WITH database name $dbName, you you fucking want to continue? [y/n], default is [n]" $color_warning
+        $confirm = Read-Host
+        if($confirm -eq "y")
+        {
+            $dataDefaultPath = getSqlDefaultPath 'Data'
+            $logDefaultPath = getSqlDefaultPath 'Log'
+            $logicalNames = retrieveDatabaseLogicalNames $backupFile
+            $restoreQuery = @"
+            USE [master]
+            RESTORE DATABASE [$conv_ledger_db] FROM  DISK = N'$backupFile' WITH  FILE = 1,  
+            MOVE N'$($logicalNames.data)' TO N'$($dataDefaultPath + $conv_ledger_db + ".mdf")',  
+            MOVE N'$($logicalNames.log)' TO N'$($logDefaultPath + $conv_ledger_db + "_Log.ldf")',  
+            NOUNLOAD,
+            REPLACE,
+            STATS = 5
 "@
-    wh 'Restoring database with query'
-    Write-Host $restoreQuery
-    Invoke-Sqlcmd -ServerInstance '.' -Query $restoreQuery -QueryTimeout 900
+            wh "Restoring database with query"
+            Write-Host $restoreQuery
+            Invoke-Sqlcmd -ServerInstance '.' -Query $restoreQuery -QueryTimeout 900
+        }
+    }
 }
 
 #this step is to restore ledger into conversion machine
 function restoreLedgerDb() {
     if (!(Test-Path -Path $conv_ledger_db_backup_path)) {
-        wh $conv_ledger_db_backup_path ' is not found'
+        wh "$conv_ledger_db_backup_path not found"
         exit
     }
     wh "Restore $conv_ledger_db_backup_path into $conv_ledger_db  database"
     Write-Host
-    wh "`t[!] Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
+    wh "Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
     Write-Host
     $confirm = Read-Host 
     if ($confirm -eq 'y') {
@@ -604,8 +644,8 @@ function copyInsightCreationScript() {
 
     # since we dont fucking want to copy this script and run it in build machine so 
     # we just put the path to deploy folder here, fucking use your eyes and hands to copy it to conversion machine
-
-    wh $path
+    Set-Clipboard "$path"
+    wh "$path was copied to clipboard"
 
     # if (!(Test-Path -Path $path)) {
     #     wh "$path not found" $color_error
@@ -613,7 +653,7 @@ function copyInsightCreationScript() {
     # }
     # $filePaths = @((Get-ChildItem -LiteralPath $path | sort {$_.BaseName}).FullName)
     # foreach ($f in $filePaths) {
-    #     Write-Host "`t$f"
+    #     Write-Host "$f"
     # }
     # if ($filePaths.Count -eq 0) {
     #     wh "There is no files in $path"
@@ -643,7 +683,7 @@ function createInsightDb() {
     }
 
     if (!(checkDbExist $conv_ledger_insight_db)) {
-       
+        
         $createDbQuery = @"
         USE MASTER 
         GO
@@ -655,11 +695,11 @@ function createInsightDb() {
     $createdbScriptFolder = "$conv_ledgerFolder\Admin"
     if (!(Test-Path $createdbScriptFolder)) {
         wh "Folder $createdbScriptFolder does not exsited" $color_error
-        exit 0
+        return
     }
-    $scripts = @((Get-ChildItem -LiteralPath $createdbScriptFolder).FullName)
+    $scripts = @((Get-ChildItem -LiteralPath $createdbScriptFolder -Filter "*BOALedgerCreate*").FullName)
     if ($scripts.Count -eq 0) {
-        wh "There is no sql script in $createdbScriptFolder"
+        wh "There is no sql create script in $createdbScriptFolder"
     }
     $createdbScript = $scripts[0]
     wh "Opening $createdbScript to run"
@@ -687,6 +727,7 @@ function runSunriseExport() {
     $un = $sunriseCredentials[0]["Login"]
     $pw = $sunriseCredentials[0]["Password"]
     $sunriseExportToolFolder = "$conv_ledgerFolder\boa-sunrise-export"
+    Set-Location $sunriseExportToolFolder
     start "$sunriseExportToolFolder\SunriseExport.exe"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 500
@@ -712,12 +753,13 @@ function runAuditTools() {
     Set-Location -Path $executionFolder
     auditAutomationTool -procName "SvuAudit" -controlId txtOpportunityFile -controlValue "$conv_ledgerFolder\Raw data\$conv_SVUListingFile" 
     auditAutomationTool -procName "SvuAudit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
-    Start-Sleep 30
+    Start-Sleep 50
 
     runSunriseExport
-    Start-Sleep 30
+    Start-Sleep 70
 
     $sunriseAuditToolFolder = "$conv_ledgerFolder\boa-sunrise-audit"
+    Set-Location $sunriseAuditToolFolder
     start "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 500
@@ -729,12 +771,12 @@ function runAuditTools() {
 #check if folder is empty or not
 function isEmptyFolder($folder) {
     if (!(Test-Path -Path $folder)) {
-        wh "`t[!] $folder does not exist" $color_warning
+        wh "[!] $folder does not exist" $color_warning
         return $true
     }
     $directoryInfo = Get-ChildItem $folder | Measure-Object
     if ($($directoryInfo.Count) -eq 0) {
-        wh "`t[!] $folder is empty" $color_warning
+        wh "[!] $folder is empty" $color_warning
         return $true
     }
     return $false
@@ -743,7 +785,8 @@ function isEmptyFolder($folder) {
 function copyReportsFromFolder($sourceFolder, $destFolder) {
     if (!(isEmptyFolder $sourceFolder)) {
         createFolderIfNotExists $destFolder
-        wh "Coping items from $sourceFolder to $destFolder"
+        $itemsCount = $(Get-ChildItem -Path "$sourceFolder\*" | Measure-Object).Count
+        wh "Coping $itemsCount items from $sourceFolder to $destFolder"
         Copy-Item -Path "$sourceFolder\*" -Destination "$destFolder" -Force
     }
 }
@@ -753,6 +796,7 @@ function copyReportFile($sourceFolder, $destFolder) {
     if (!(isEmptyFolder $sourceFolder)) {
         createFolderIfNotExists $destFolder
         $file = Get-ChildItem "$sourceFolder" | Sort {$_.LastWriteTime} | select -last 1
+        wh "Coping $($file.FullName) from $sourceFolder to $destFolder"
         Copy-Item -Path "$($file.FullName)" -Destination "$destFolder" -Force
     }
 }
@@ -772,13 +816,15 @@ function prepareReports() {
     copyReportFile $conv_sunriseAuditResultPath $conv_automationReportsFolder
 
     #copy records count reports to automation reports folder
-    copyReportsFromFolder "$conv_recordCountReportsFolder" $conv_automationReportsFolder
-    copyReportFile "$conv_ledgerFolder\Run1\Conversion Record Counts.xlsx" $conv_automationReportsFolder
-    copyReportFile "$conv_ledgerFolder\Run1\PreConversionRecordCount.txt" $conv_automationReportsFolder
-    copyReportFile "$conv_ledgerFolder\Run1\PostConversionRecordCount.txt" $conv_automationReportsFolder
+    $recordCountFolder = "$conv_automationReportsFolder\Records Count"
+    copyReportsFromFolder "$conv_recordCountReportsFolder" "$recordCountFolder"
+    copyReportFile "$conv_ledgerFolder\Run1\Conversion Record Counts.xlsx" $recordCountFolder
+    copyReportFile "$conv_ledgerFolder\Run1\PreConversionRecordCount.txt" $recordCountFolder
+    copyReportFile "$conv_ledgerFolder\Run1\PostConversionRecordCount.txt" $recordCountFolder
 }
 
 ### RUNSHEET FUNCTIONS ###
+# Check whether blobs folder is existing, if it is, rename it to ..._[current date time]
 function backupBlobsFolder() {
     $blobFolderConvMachine = "Source data from setup"
     $newName = $blobFolderConvMachine + "_$(now)"
