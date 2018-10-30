@@ -10,10 +10,10 @@ Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
 
 ### FILL OUT THE FOLOWWING VARIABLES BEFORE RUN THE SCRIPT ###
 #THE LEDGER BEING MIGRATE
-$LEDGER = "Covercorp"
+$LEDGER = "YourInsurance"
 
 $conv_ledgerName = $LEDGER
-#$conv_ledgerFolder = "F:\$conv_ledgerName" #real path in conversion machine
+$conv_ledgerFolder = "F:\Your Insurance Broker" #real path in conversion machine
 
 $CONFIG_AZURE_BLOB_STORAGE_ACCOUNT = "FUCKINGTEST"
 $CONFIG_AZURE_BLOB_STORAGE_KEY = "FUCKINGTEST"
@@ -21,15 +21,16 @@ $CONFIG_AUDIT_LISTING_FILE = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_PASSWORD = "FUCKINGTEST"
-$conv_SVUListingFile = "Final Data\AuditPolicyList.COVERCORP_HQ.2018-10-26.csv"
+$conv_SVUListingFile = "AuditPolicyList.YOURINS_HQ.2018-05-25.csv"
 
 #local working folder (in your development machine), if is current path, must be set to ".\"
 $local_workingFolder = "d:\conversion_auto\$LEDGER"
 
-$conv_ledgerFolder = $local_workingFolder #test path on local machine
+#$conv_ledgerFolder = $local_workingFolder #test path on local machine
 
-$conv_ledger_db_backup_path = "$conv_ledgerFolder\Raw Data\Melbourne.bak"
-### -------------------------------------------------- ###
+$conv_ledger_db_backup_path = "" #"$conv_ledgerFolder\Raw Data\Melbourne.bak"
+
+#############################################################################################################################################################################################################
 
 #path to your repo folders
 $local_conversionRootPath = "D:\sfg-repos\insight_data_conversion\boa-data-conversion"
@@ -266,8 +267,22 @@ function restoreNugetPackages($solutionDir) {
     }
     Write-Host "RESTORE NUGET PACKAGES DONE" -foreground green
 }
-function buildSolution($solutionPath, $buildMode) {	
-    wh $solutionPath
+function getBuildProjects($solutionRootDir, [string[]]$excludedProjects = @())
+{
+    $includeProjects = ""
+    Get-ChildItem $solutionRootDir -Recurse -Include "*.csproj" |
+      ForEach-Object {  
+          $itemName =[System.IO.Path]::GetFileName($_.FullName)
+          if(-not ($excludedProjects -contains $itemName))
+          {
+            $includeProjects = $includeProjects + $_.BaseName.Replace(".", "_") + ";"
+          }
+    }
+    return $includeProjects.Substring(0, $includeProjects.Length-1)
+}
+function buildSolution($solutionPath, $buildMode, [string[]]$excludeProjects = @()) {	
+    $compilingProjects = getBuildProjects $(Split-Path -Path $solutionPath) $excludeProjects
+    wh "`tBuilding $compilingProjects of $solutionPath"
     if (!(Test-Path -Path $solutionPath)) {
         wh "Solution file not found" $color_error
         return
@@ -276,13 +291,6 @@ function buildSolution($solutionPath, $buildMode) {
     if ($buildMode -eq $()) {
         $buildMode = "Release"
     }
-
-    # Setup log file
-    #$solutionFileName = (Get-Item $solutionPath).Name
-    #$logFileName = "logs\" + $solutionFileName + "_log.txt";
-    <#  if (Test-Path($logFileName)) {
-        Remove-Item $logFileName
-    } #>
 
     wh "Cleaning $solutionPath"
     # Clean up
@@ -293,7 +301,7 @@ function buildSolution($solutionPath, $buildMode) {
     }
 
     # Build all
-    msbuild "$solutionPath" /p:Configuration=$buildMode /v:m | Out-Default 
+    msbuild "$solutionPath" /t:$compilingProjects /p:Configuration=$buildMode | Out-Default 
           
     if ($LastExitCode -ne 0) {
         Throw "Build " + $solutionPath + " failed"  
@@ -304,7 +312,7 @@ function buildSolutions() {
     buildSolution  "$local_sunriseAuditRootPath\boa-sunrise-audit.sln" "Debug"
     buildSolution  "$local_sunriseExportRootPath\SunriseExport.sln" "Debug"
     buildSolution  "$local_svuAuditRootPath\SvuAudit.sln" "Debug"
-    buildSolution  "$local_conversionRootPath\DatabaseConversion.sln" "Debug"
+    buildSolution  "$local_conversionRootPath\DatabaseConversion.sln" "Debug" @("PolicyNotesConversion.csproj", "DocumentDownloader.csproj", "DocumentMultipac.csproj")
 }
 function getConfigValue($appconfigFilePath, $xpath, $attribute) {
     $appConfig = New-Object Xml
