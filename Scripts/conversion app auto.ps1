@@ -903,9 +903,15 @@ function runSunriseExport() {
     
     $sunriseExportToolFolder = "$conv_ledgerFolder\boa-sunrise-export"
     Set-Location $sunriseExportToolFolder
-    start "$sunriseExportToolFolder\SunriseExport.exe"
+    $sunriseExportTool = "$sunriseExportToolFolder\SunriseExport.exe"
+    if(!(Test-Path -Path $sunriseExportTool))
+    {
+        wh "Sunrise export tool does not exist" $color_error
+        return
+    }
+    start "$sunriseExportTool"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
     auditAutomationTool -procName "SunriseExport" -controlId cbxSunriseURL -controlValue "Production Proxy" 
     auditAutomationTool -procName "SunriseExport" -controlId cbxVersion -controlValue "Latest version only" 
@@ -944,9 +950,15 @@ function runAuditTools() {
 
     $sunriseAuditToolFolder = "$conv_ledgerFolder\boa-sunrise-audit"
     Set-Location $sunriseAuditToolFolder
-    start "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
+    $sunriseAuditTool = "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
+    if(!(Test-Path -Path $sunriseAuditTool))
+    {
+        wh "Sunrise audit tool does not exist" $color_error
+        return
+    }
+    start $sunriseAuditTool
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
     $outputFileFromSunriseExport = Get-ChildItem "$conv_ledgerFolder\boa-sunrise-export\Output" | Sort {$_.LastWriteTime} | select -last 1
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtPolicyFile -controlValue "$($outputFileFromSunriseExport.FullName)" 
