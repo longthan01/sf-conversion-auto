@@ -55,6 +55,7 @@ $conv_defaultDatabaseBackupFolder = "$conv_automationBackupFolder\database"
 $conv_defaultSourceCodeBackupFolder = "$conv_automationBackupFolder\source code"
 $conv_changeCollationSqlScriptPath = "$conv_ledgerFolder\Change_Collation.sql"
 $conv_copyCustomConfigScriptPath = "$conv_ledgerFolder\Copy_Custom_Config.cmd"
+$conv_siteSpecificScriptsFolder = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\SiteSpecific\$conv_ledgerName"
 
 $conv_ledger_db = $conv_ledgerName
 $conv_ledger_insight_db = "$conv_ledgerName" + "Insight"
@@ -74,23 +75,25 @@ $color_error = 'red'
 function printUsage() {
     wh "Params:"
     wh "-task"
-    wh "(runsheet)rs-backupblobsfolder"
+    wh "(runsheet)rs-BackupBlobsFolder"
     wh
-    wh "(conv)step0-pullcode"
-    wh "(dev)step1-build"
-    wh "(conv)step2-prepare"
-    wh "(conv)step3-zip"
-    wh "(conv)step4-extract"
-    wh "(conv)step5-config"
-    wh "(conv)step6-checkconfig"
-    wh "(build)step7-applyconfig"
-    wh "(conv)step8-recheckconfig"
-    wh "(conv)step9-restoreledgerdb"
-    wh "(conv)step10-changecollation"
-    wh "(conv)step11-copycreateinsightdbscript"
-    wh "(conv)step12-createinsightdb"
-    wh "(conv)step13-runaudittools"
-    wh "(conv)step14-preparereports"
+    wh "(conv) step0-PullCode"
+    wh "(dev) step1-Build"
+    wh "(conv) step2-Prepare"
+    wh "(conv) step3-Zip"
+    wh "(conv) step4-Extract"
+    wh "(conv) step5-Config"
+    wh "(conv) step6-CheckConfig"
+    wh "(conv) step7-ApplyConfig"
+    wh "(conv) step8-RecheckConfig"
+    wh "(conv) step9-RestoreLedgerDb"
+    wh "(conv) step10-ChangeCollation"
+    wh "(build) step11-CopyCreateInsightDbScript"
+    wh "(conv) step12-CreateInsightDB"
+    wh "(conv) step13-CheckPreconversionScripts"
+    wh "(conv) step14-CheckPostConversionScripts"
+    wh "(conv) step15-RunaAditTools"
+    wh "(conv) step16-PrepareReports"
 }
 function printVariable($name, $value) {
     wh "`t`t`$$name`: " "cyan" 0
@@ -124,6 +127,7 @@ function main() {
     if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
         printUsage
     }
+    $task = $task.ToLower().Trim()
     if ($task -eq 'step0-pullcode') {
         wh "Get latest codes from upstream master"
         pullLatestCode
@@ -186,12 +190,21 @@ function main() {
         createInsightDb
     }
     
-    if ($task -eq "step13-runaudittools") {
+    if ($task -eq "step13-checkpreconversionscripts") {
+        wh "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"
+        checkPreConversionScripts
+    }
+    if ($task -eq "step14-checkpostconversionscripts") {
+        wh "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"
+        checkPostConversionScripts
+    }
+
+    if ($task -eq "step15-runaudittools") {
         wh "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"
         runAuditTools
     }
 
-    if ($task -eq "step14-preparereports") {
+    if ($task -eq "step16-preparereports") {
         wh "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count reports to automation_reports folder"
         prepareReports
     }
@@ -917,6 +930,42 @@ function runSunriseExport() {
     auditAutomationTool -procName "SunriseExport" -controlId cbxVersion -controlValue "Latest version only" 
     auditAutomationTool -procName "SunriseExport" -controlId txtSunriseUsername -controlValue "$un" 
     auditAutomationTool -procName "SunriseExport" -controlId txtSunrisePassword -controlValue "$pw" 
+}
+
+function checkPreConversionScripts()
+{
+    if(!(Test-Path -Path $conv_siteSpecificScriptsFolder))
+    {
+        wh "Site specific scripts for $conv_ledgerName `: $conv_siteSpecificScriptsFolder not found" $color_warning
+        return
+    }
+    $preConsoleAppFolder = "$conv_siteSpecificScriptsFolder\preconsoleapp"
+    if(!(Test-Path -Path $preConsoleAppFolder))
+    {
+        wh "Pre console app folder not found, open and fucking check it by your fucking eyes" $color_warning
+        start $conv_siteSpecificScriptsFolder
+    }
+    else {
+        start $preConsoleAppFolder
+    }
+}
+
+function checkPostConversionScripts()
+{
+    if(!(Test-Path -Path $conv_siteSpecificScriptsFolder))
+    {
+        wh "Site specific scripts for $conv_ledgerName `: $conv_siteSpecificScriptsFolder not found" $color_warning
+        return
+    }
+    $preConsoleAppFolder = "$conv_siteSpecificScriptsFolder\postconsoleapp"
+    if(!(Test-Path -Path $preConsoleAppFolder))
+    {
+        wh "Pre console app folder not found, open and fucking check it by your fucking eyes" $color_warning
+        start $conv_siteSpecificScriptsFolder
+    }
+    else {
+        start $preConsoleAppFolder
+    }
 }
 
 #run 3 audit tools in order: 
