@@ -75,25 +75,9 @@ $color_error = 'red'
 function printUsage() {
     wh "Params:"
     wh "-task"
-    wh "(runsheet)rs-BackupBlobsFolder"
-    wh
-    wh "(conv) step0-PullCode"
-    wh "(dev) step1-Build"
-    wh "(conv) step2-Prepare"
-    wh "(conv) step3-Zip"
-    wh "(conv) step4-Extract"
-    wh "(conv) step5-Config"
-    wh "(conv) step6-CheckConfig"
-    wh "(conv) step7-ApplyConfig"
-    wh "(conv) step8-RecheckConfig"
-    wh "(conv) step9-RestoreLedgerDb"
-    wh "(conv) step10-ChangeCollation"
-    wh "(build) step11-CopyCreateInsightDbScript"
-    wh "(conv) step12-CreateInsightDB"
-    wh "(conv) step13-CheckPreconversionScripts"
-    wh "(conv) step14-CheckPostConversionScripts"
-    wh "(conv) step15-RunaAditTools"
-    wh "(conv) step16-PrepareReports"
+    foreach ($t in $TASKS) {
+        wh "`t$($t.name)"
+    }
 }
 function printVariable($name, $value) {
     wh "`t`t`$$name`: " "cyan" 0
@@ -112,6 +96,28 @@ function printEnvironmentVariables() {
     wh "`t`t`t*** ======= ***" "cyan"
     wh
 }
+
+$TASKS = @(
+    @{name = "step0-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
+    @{name = "step1-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
+    @{name = "step2-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
+    @{name = "step3-Zip"; handler = "archive"; desc = "Archive the conversion and related tools to $local_workingFolder"},
+    @{name = "step4-Extract"; handler = "extract"; desc = "Extract the conversion and related tools to $conv_ledgerFolder"},
+    @{name = "step5-Config"; handler = "config"; desc = "Read the CONFIG_ variables, then replace it from the custom config file placeholders"},
+    @{name = "step6-CheckConfig"; handler = "checkConfig"; desc = "Open custom config files to check ether your configurations are fucking right"},
+    @{name = "step7-ApplyConfig"; handler = "applyConfig"; desc = "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"},
+    @{name = "step8-RecheckConfig"; handler = "recheckConfig"; desc = "Open main config files and fucking re-check them by your fucking eyes"},
+    @{name = "step9-RestoreLedgerDb"; handler = "restoreLedgerDb"; desc = "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"},
+    @{name = "step10-ChangeCollation"; handler = "changeCollationLedgerDb"; desc = "Check if the $conv_ledger_db has the right collation, if it's not, open the change collation script in ssms then you need to run it by your fucking hands"},
+    @{name = "step11-CopyCreateInsightDbScript"; handler = "copyInsightCreationScript"; desc = "Copy Insight database creation script, this function basically copy out the path to script folder to clipboard. You need to open build machine then paste it to windows explorer to open the folder then copy the latest script by your fucking hands"},
+    @{name = "step12-CreateInsightDB"; handler = "createInsightDb"; desc = "Create $($conv_ledgerName + "Insight") database, if the db is already existed, backup it to $conv_automationBackupFolder"},
+    @{name = "step13-CheckPreconversionScripts"; handler = "checkPreConversionScripts"; desc = "Open $conv_siteSpecificScriptsFolder\Preconversion folder to see if there's any script need to run before the console app"},
+    @{name = "step14-CheckPostConversionScripts"; handler = "checkPostConversionScripts"; desc = "Open $conv_siteSpecificScriptsFolder\Postconversion folder to see if there's any script need to run after the console app"},
+    @{name = "step15-RunaAditTools"; handler = "runAuditTools"; desc = "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"},
+    @{name = "step16-PrepareReports"; handler = "prepareReports"; desc = "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count (Data count checker) reports to automation_reports folder"},
+    @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
+    @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"}
+)
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
     $conv_appSourceFolder = replaceIfCurrentPath $conv_appSourceFolder
@@ -126,92 +132,15 @@ function main() {
 
     if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
         printUsage
+        return
     }
+
     $task = $task.ToLower().Trim()
-    if ($task -eq 'step0-pullcode') {
-        wh "Get latest codes from upstream master"
-        pullLatestCode
-    }
-    if ($task -eq 'step1-build') {
-        wh "Build conversion and related tools"
-        buildSolutions
-    }
-    if ($task -eq 'step2-prepare') {
-        wh "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"
-        prepareConvEnvironment
-    }
-
-    if ($task -eq 'step3-zip') {
-        wh "Archive the conversion and related tools to $local_workingFolder"
-        archive
-    }
-   
-    if ($task -eq 'step4-extract') {
-        wh "Extract the conversion and related tools to $conv_ledgerFolder"
-        extract
-    }
-    
-    if ($task -eq 'step5-config') {
-        wh "Read the CONFIG_ variables, then replace it from the custom config file placeholders"
-        config
-    }
-    
-    if ($task -eq 'step6-checkconfig') {
-        wh "Open custom config files to check whether your configurations are fucking right"
-        checkConfig
-    }
-
-    if ($task -eq 'step7-applyconfig') {
-        wh "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"
-        applyConfig
-    }
-    if ($task -eq 'step8-recheckconfig') {
-        wh "Open main config files and fucking re-check them by your fucking eyes"
-        recheckConfig
-    }
-    if ($task -eq 'step9-restoreledgerdb') {
-        wh "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"
-        restoreLedgerDb
-    }
-    if ($task -eq 'step10-changecollation') {
-        wh "Check if the $conv_ledger_db has the right collation, if it's not, open the change collation script in ssms"
-        wh "then you need to run it by your fucking hands"
-        changeCollationLedgerDb
-    }
-    
-    if ($task -eq 'step11-copycreateinsightdbscript') {
-        wh "Copy Insight database creation script, this function basically copy out the path to script folder to clipboard"
-        wh "You need to open build machine then paste it to windows explorer to open the folder then copy the latest script by your fucking hands"
-        copyInsightCreationScript
-    }
-
-    if ($task -eq 'step12-createinsightdb') {
-        wh "Create $($conv_ledgerName + "Insight") database, if the db is already existed, backup it to $conv_automationBackupFolder"
-        createInsightDb
-    }
-    
-    if ($task -eq "step13-checkpreconversionscripts") {
-        wh "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"
-        checkPreConversionScripts
-    }
-    if ($task -eq "step14-checkpostconversionscripts") {
-        wh "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"
-        checkPostConversionScripts
-    }
-
-    if ($task -eq "step15-runaudittools") {
-        wh "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"
-        runAuditTools
-    }
-
-    if ($task -eq "step16-preparereports") {
-        wh "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count reports to automation_reports folder"
-        prepareReports
-    }
-
-    if ($task -eq 'rs-backupblobsfolder') {
-        wh "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"
-        backupBlobsFolder
+    foreach ($t in $TASKS) {
+        if ($t.name -eq $task) {
+            wh " ***$($t.desc) ***"
+            &$t.handler
+        }
     }
 }
 
@@ -475,37 +404,62 @@ function prepareConvEnvironment() {
         wh "$run1 was renamed to $newName"
     }
 }
+function backupOldAdminScripts() {
+    
+}
 function backupOldSourceCode() {
     #create current_date_time folder in $conv_defaultSourceCodeBackupFolder
     $backupFolder = "$conv_defaultSourceCodeBackupFolder\$(now)"
     createFolderIfNotExists $backupFolder
-    wh "Backing up old source codes into $backupFolder"
-    # backup console app
-    backupFolder "$conv_ledgerFolder\DatabaseConversion.ConsoleApp" $backupFolder
-    # backup import blob app
-    backupFolder  "$conv_ledgerFolder\DatabaseConversion.AzureImportBlob" $backupFolder
-    # backup data count checker app
-    backupFolder  "$conv_ledgerFolder\DataCountChecker" $backupFolder
-    # backup import schedule app
-    backupFolder  "$conv_ledgerFolder\ImportedSchedule" $backupFolder
-    # backup sunrise audit app
-    backupFolder "$conv_ledgerFolder\boa-sunrise-audit" $backupFolder
-    # backup sunrise export app
-    backupFolder  "$conv_ledgerFolder\boa-sunrise-export" $backupFolder
-    # backup svu audit app
-    backupFolder "$conv_ledgerFolder\boa-svu-audit" $backupFolder
+    $adminBackupFolder = "$backupFolder\Admin"
+    createFolderIfNotExists $adminBackupFolder
+    $confirm = ""
+    $adminFolder = "$conv_ledgerFolder\Admin"
+
+    if (!(Test-Path -Path $adminFolder)) {
+        wh "There's no admin folder in $conv_ledgerFolder"
+    }
+    else {
+        wh "Do you fucking want to backup admin script (BOALedgerCreate.sql)? [y/n], default is [n]" $color_warning
+        $confirm = Read-Host
+        if ($confirm -eq "y") {
+            wh "Moving old BOALedgerCreate.sql to $adminBackupFolder"
+            Move-Item -Path "$adminFolder\*BOALedgerCreate.sql" -Destination $adminBackupFolder
+        }
+    }
+   
+    wh "Do you fucking want to backup old source codes? [y/n], choose yes if you want to use the new source code, or no if you don't, default is [n]"
+    $confirm = Read-Host
+    if ($confirm -eq "y") {
+        wh "Moving old BOALedgerCreate.sql to $adminBackupFolder"
+        Move-Item -Path "$adminFolder\*BOALedgerCreate.sql" -Destination $adminBackupFolder
+       
+        wh "Backing up old source codes into $backupFolder"
+        # backup console app
+        backupFolder "$conv_ledgerFolder\DatabaseConversion.ConsoleApp" $backupFolder
+        # backup import blob app
+        backupFolder  "$conv_ledgerFolder\DatabaseConversion.AzureImportBlob" $backupFolder
+        # backup data count checker app
+        backupFolder  "$conv_ledgerFolder\DataCountChecker" $backupFolder
+        # backup import schedule app
+        backupFolder  "$conv_ledgerFolder\ImportedSchedule" $backupFolder
+        # backup sunrise audit app
+        backupFolder "$conv_ledgerFolder\boa-sunrise-audit" $backupFolder
+        # backup sunrise export app
+        backupFolder  "$conv_ledgerFolder\boa-sunrise-export" $backupFolder
+        # backup svu audit app
+        backupFolder "$conv_ledgerFolder\boa-svu-audit" $backupFolder
+    }
+       
     wh
     wh "Do you fucking want to backup CONFIGURATION FOLDERS? [y/n], choose [y] if you want to overrite the old ones" $color_warning
     wh "or [n] if you want to re-use? default is [n]" $color_warning
     $backupConfigurationConfirm = Read-Host
-    if($backupConfigurationConfirm -eq "y")
-    {
+    if ($backupConfigurationConfirm -eq "y") {
         #backup old configuration folders
         $configurationFolders = @((Get-ChildItem -Path "$conv_ledgerFolder\*.Config").FullName)
-        foreach ($f in $configurationFolders)
-        {
-            if(Test-Path -Path $f)
-            {
+        foreach ($f in $configurationFolders) {
+            if (Test-Path -Path $f) {
                 backupFolder "$f" $backupFolder
             }
         }
@@ -516,6 +470,7 @@ function backupFolder($source, $dest) {
         wh "$source folder does not existed, skip backup" $color_warning
         return
     }
+    wh "Moving all items from $source to $dest"
     Move-Item "$source" $dest
 }
 #archive conversion app and related tools, this step should be ran in development machine
@@ -563,8 +518,7 @@ function extract() {
         return 
     }
     $currentConfigFolders = (Get-ChildItem -Path "$conv_ledgerFolder\*.Config" | Measure-Object).Count
-    if($currentConfigFolders -ne 0)
-    {
+    if ($currentConfigFolders -ne 0) {
         wh "Configuration folders are existed, check and extract by your fucking hands, the tool does not support extract programmatically."
         return
     }
@@ -583,8 +537,7 @@ function setConfigs($appConfigFilePath, $configHashArray) {
                 foreach ($config in $configHashArray) {
                     $contains = $add.value.Contains($config.key)
                     $add.value = $add.value.Replace($config.key, $config.value)
-                    if($contain)
-                    {
+                    if ($contain) {
                         Write-Host $add.value
                     }
                 }
@@ -599,8 +552,7 @@ function setConfigs($appConfigFilePath, $configHashArray) {
                 foreach ($config in $configHashArray) {
                     $contains = $add.connectionString.Contains($config.key)
                     $add.connectionString = $add.connectionString.Replace($config.key, $config.value)
-                    if($contain)
-                    {
+                    if ($contain) {
                         Write-Host $add.connectionString
                     }
                 }
@@ -877,16 +829,14 @@ function createInsightDb() {
 }
 
 #run audit tools
-function isTableExist($dbName, $tableName)
-{
+function isTableExist($dbName, $tableName) {
     $query = @"
     SELECT TOP 1 * 
     FROM $dbName.INFORMATION_SCHEMA.TABLES
     WHERE TABLE_NAME = '$tableName'
 "@
     $rows = @(Invoke-Sqlcmd -ServerInstance '.' -Query $query)
-    if($rows.Count -eq 0)
-    {
+    if ($rows.Count -eq 0) {
         return $false
     }
     return $true
@@ -896,8 +846,7 @@ function runSunriseExport() {
     $sunriseCredentials = @()
     $un = ""
     $pw = ""
-    if(isTableExist $conv_ledger_db "SunriseServer")
-    {
+    if (isTableExist $conv_ledger_db "SunriseServer") {
         $query = "select top 1 * from $conv_ledger_db..[SunriseServer] where code = 'INSNET'"
         $sunriseCredentials = @(Invoke-Sqlcmd -ServerInstance '.' -Query $query)
         if ($($sunriseCredentials.Count) -ne 0) {
@@ -917,8 +866,7 @@ function runSunriseExport() {
     $sunriseExportToolFolder = "$conv_ledgerFolder\boa-sunrise-export"
     Set-Location $sunriseExportToolFolder
     $sunriseExportTool = "$sunriseExportToolFolder\SunriseExport.exe"
-    if(!(Test-Path -Path $sunriseExportTool))
-    {
+    if (!(Test-Path -Path $sunriseExportTool)) {
         wh "Sunrise export tool does not exist" $color_error
         return
     }
@@ -932,16 +880,13 @@ function runSunriseExport() {
     auditAutomationTool -procName "SunriseExport" -controlId txtSunrisePassword -controlValue "$pw" 
 }
 
-function checkPreConversionScripts()
-{
-    if(!(Test-Path -Path $conv_siteSpecificScriptsFolder))
-    {
+function checkPreConversionScripts() {
+    if (!(Test-Path -Path $conv_siteSpecificScriptsFolder)) {
         wh "Site specific scripts for $conv_ledgerName `: $conv_siteSpecificScriptsFolder not found" $color_warning
         return
     }
     $preConsoleAppFolder = "$conv_siteSpecificScriptsFolder\preconsoleapp"
-    if(!(Test-Path -Path $preConsoleAppFolder))
-    {
+    if (!(Test-Path -Path $preConsoleAppFolder)) {
         wh "Pre console app folder not found, open and fucking check it by your fucking eyes" $color_warning
         start $conv_siteSpecificScriptsFolder
     }
@@ -950,16 +895,13 @@ function checkPreConversionScripts()
     }
 }
 
-function checkPostConversionScripts()
-{
-    if(!(Test-Path -Path $conv_siteSpecificScriptsFolder))
-    {
+function checkPostConversionScripts() {
+    if (!(Test-Path -Path $conv_siteSpecificScriptsFolder)) {
         wh "Site specific scripts for $conv_ledgerName `: $conv_siteSpecificScriptsFolder not found" $color_warning
         return
     }
     $preConsoleAppFolder = "$conv_siteSpecificScriptsFolder\postconsoleapp"
-    if(!(Test-Path -Path $preConsoleAppFolder))
-    {
+    if (!(Test-Path -Path $preConsoleAppFolder)) {
         wh "Pre console app folder not found, open and fucking check it by your fucking eyes" $color_warning
         start $conv_siteSpecificScriptsFolder
     }
@@ -982,11 +924,9 @@ function runAuditTools() {
     Start-Sleep -Milliseconds 500
     Set-Location -Path $executionFolder
     $listingFile = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomAppSettings.config" 'appSettings/add[@key="SvuCSVFilePath"]' "value"
-    if(!$listingFile)
-    {
+    if (!$listingFile) {
         $listingFile = "$conv_ledgerFolder\Raw data\$conv_SVUListingFile"
-        if(!(Test-Path -Path $listingFile))
-        {
+        if (!(Test-Path -Path $listingFile)) {
             wh "$listingFile does not existed" $color_warning
         }
     }
@@ -1000,8 +940,7 @@ function runAuditTools() {
     $sunriseAuditToolFolder = "$conv_ledgerFolder\boa-sunrise-audit"
     Set-Location $sunriseAuditToolFolder
     $sunriseAuditTool = "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
-    if(!(Test-Path -Path $sunriseAuditTool))
-    {
+    if (!(Test-Path -Path $sunriseAuditTool)) {
         wh "Sunrise audit tool does not exist" $color_error
         return
     }
@@ -1013,10 +952,8 @@ function runAuditTools() {
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtPolicyFile -controlValue "$($outputFileFromSunriseExport.FullName)" 
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
 }
-function countDown($seconds, $message)
-{
-    foreach($count in (1..$seconds))
-    {
+function countDown($seconds, $message) {
+    foreach ($count in (1..$seconds)) {
         Write-Progress -Id 1 -Activity "$message" -Status "$($seconds - $count) left" -PercentComplete (($count / $seconds) * 100)
         Start-Sleep -Seconds 1
     }
@@ -1091,4 +1028,30 @@ function backupBlobsFolder() {
     wh "$conv_ledgerFolder\$blobFolderConvMachine was renamed to $newName"
 }
 
+function openAzureDb() {
+    $azureInsightDbConnString = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomConnectionStrings.config" 'connectionStrings/add[@name="DestinationDatabase"]' "connectionString"
+    wh "Config is $azureInsightDbConnString"
+    $tokens = $azureInsightDbConnString.Split(";")
+    $server = "" 
+    $un = ""
+    $pw = ""
+    $db = ""
+    
+    foreach ($token in $tokens) {
+        if ($token.ToLower().Contains("server=")) {
+            $server = $token.Split("=")[1]
+        }
+        if ($token.ToLower().Contains("user id=")) {
+            $un = $token.Split("=")[1]
+        }
+        if ($token.ToLower().Contains("password=")) {
+            $pw = $token.Split("=")[1]
+        }
+        if ($token.ToLower().Contains("database=")) {
+            $db = $token.Split("=")[1]
+        }
+    }
+    wh "Opening database $db in $server"
+    ssms -S "$server" -d "$db" -U "$un" -P "$pw"
+}
 main
