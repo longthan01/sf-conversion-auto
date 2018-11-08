@@ -15,6 +15,7 @@ $LEDGER = "YourInsurance"
 
 $WINBEAT = "WINBEAT"
 $IBAIS = "IBAIS"
+
 $SOURCE_SYSTEM = $IBAIS
 
 $conv_ledgerName = $LEDGER
@@ -80,20 +81,16 @@ function printUsage() {
     }
 }
 function printVariable($name, $value) {
+    wh
     wh "`t`t`$$name`: " "cyan" 0
-    wh $value "magenta" 1
+    wh $value "magenta" 0
 }
 function printEnvironmentVariables() {
-    wh
-    wh "`t`t`t*** ======= ***" "cyan"
-    wh
     printVariable "LEDGER" $LEDGER
     printVariable "SOURCE_SYSTEM" $SOURCE_SYSTEM
     printVariable "conv_ledgerFolder" $conv_ledgerFolder
     printVariable "conv_SVUListingFile" $conv_SVUListingFile
     printVariable "conv_ledger_db_backup_path" $conv_ledger_db_backup_path
-    wh
-    wh "`t`t`t*** ======= ***" "cyan"
     wh
 }
 
@@ -116,7 +113,8 @@ $TASKS = @(
     @{name = "step15-RunaAditTools"; handler = "runAuditTools"; desc = "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"},
     @{name = "step16-PrepareReports"; handler = "prepareReports"; desc = "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count (Data count checker) reports to automation_reports folder"},
     @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
-    @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"}
+    @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
+    @{name = "test"; handler = "test"; desc = "test"}
 )
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -138,7 +136,8 @@ function main() {
     $task = $task.ToLower().Trim()
     foreach ($t in $TASKS) {
         if ($t.name -eq $task) {
-            wh " ***$($t.desc) ***"
+            wh "[$($t.name)] USAGE: $($t.desc)"
+            wh
             &$t.handler
         }
     }
@@ -278,6 +277,11 @@ function buildSolutions() {
     buildSolution  "$local_conversionRootPath\DatabaseConversion.sln" "Debug" @("PolicyNotesConversion.csproj", "DocumentDownloader.csproj", "DocumentMultipac.csproj")
 }
 function getConfigValue($appconfigFilePath, $xpath, $attribute) {
+    if(!(Test-Path -Path $appConfigFilePath))
+    {
+        wh "$appConfigFilePath not found" $color_error
+        return
+    }
     $appConfig = New-Object Xml
     $appConfig.Load($appConfigFilePath)
     foreach ($config in $appConfig.SelectNodes($xpath)) {
@@ -512,7 +516,18 @@ function extract() {
     # extract svu audit app
     extractFileIntoFolder "$conv_appSourceFolder\boa-svu-audit.zip" "$conv_ledgerFolder\boa-svu-audit"
     #extract the config templates
-    $templateFiles = "$conv_appSourceFolder\appconfig_template.zip"
+    $templateFiles = ""
+    if($SOURCE_SYSTEM -eq $WINBEAT)
+    {
+        $templateFiles = "$conv_appSourceFolder\appconfig_template_winbeat.zip"
+    }
+    else {
+        if($SOURCE_SYSTEM -eq $IBAIS)
+        {
+            $templateFiles = "$conv_appSourceFolder\appconfig_template_ibais.zip"
+        }
+    }
+    
     if (!(Test-Path -Path $templateFiles)) {
         wh "$templateFiles not found" $color_warning
         return 
@@ -570,7 +585,8 @@ function config() {
         $hashConfigurations = @(
             @{key = "[AZURE_BLOB_STORAGE_ACCOUNT]"; value = $CONFIG_AZURE_BLOB_STORAGE_ACCOUNT},
             @{key = "[AZURE_BLOB_STORAGE_KEY]"; value = $CONFIG_AZURE_BLOB_STORAGE_KEY},
-            @{key = "[LEDGER_FOLDER]"; value = $conv_ledgerName},
+            @{key = "[LEDGER_NAME]"; value = $conv_ledgerName},
+            @{key = "[LEDGER_FOLDER]"; value = $conv_ledgerFolder},
             @{key = "[AUDIT_LISTING_FILE]"; value = $CONFIG_AUDIT_LISTING_FILE},
             @{key = "[CONV_LEDGER_INSIGHT_DB]"; value = $conv_ledger_insight_db},
             @{key = "[CONV_LEDGER_DB]"; value = $conv_ledger_db},
@@ -1030,7 +1046,10 @@ function backupBlobsFolder() {
 
 function openAzureDb() {
     $azureInsightDbConnString = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomConnectionStrings.config" 'connectionStrings/add[@name="DestinationDatabase"]' "connectionString"
-    wh "Config is $azureInsightDbConnString"
+    if([string]::IsNullOrEmpty($azureInsightDbConnString))
+    {
+        return
+    }
     $tokens = $azureInsightDbConnString.Split(";")
     $server = "" 
     $un = ""
@@ -1051,7 +1070,86 @@ function openAzureDb() {
             $db = $token.Split("=")[1]
         }
     }
-    wh "Opening database $db in $server"
+    wh "Opening database $db in $server with command:"
+    wh "ssms -S `"$server`" -d `"$db`" -U `"$un`" -P `"$pw`""
     ssms -S "$server" -d "$db" -U "$un" -P "$pw"
 }
+
+function getPasswordFromKeyVault($shortVaultName, $valueKeyName)
+{
+    $vaultName = "sfts-boa-$shortVaultName-keyv-01"
+    
+    $attempts = 0
+    do
+    {
+        try
+        {
+            $s = Get-AzureKeyVaultSecret -VaultName $vaultName -Name $valueKeyName
+            return $s.SecretValueText
+        }
+        catch
+        {
+            $errorMessage = $_.Exception.Message
+            if ($errorMessage.Contains('The remote name could not be resolved'))
+            {
+                Write-Host "    Error $errorMessage. Sleeping for 3 seconds and trying again"
+                $attempts = $attempts + 1
+                Start-Sleep -Seconds 3
+            }
+            else
+            {
+                Throw $errorMessage
+            }        
+        }
+    } until (($attempts -gt 3))
+
+    if ($attempts -gt 3)
+    {
+        Throw "Cannot access key vault $vaultName after 3 attempts"
+    }
+}
+function getControlPanelDbConfig($environmentName, $controlPanelDrActivated = $false)
+{
+    $controlPanelDbConfig = @{}
+    $controlPanelDbConfig.ServerName = "boa-control-panel-db-01".Replace('-', '')
+    if ($controlPanelDrActivated -eq $true)
+    {
+        $controlPanelDbConfig.ServerName = "bdr-control-panel-db-01".Replace('-', '')
+    }
+    $controlPanelDbConfig.Name = "boa-$environmentName-control-panel"
+    $controlPanelDbConfig.Username = "$environmentName-control-panel".Replace('-', '_')
+    $controlPanelDbConfig.Password = getPasswordFromKeyVault $environmentName "$environmentName-control-panel-db-password"
+
+    return $controlPanelDbConfig
+}
+
+
+function test()
+{
+    wh "Enter ledger display name keyword to search"
+    $kwDisplayName = Read-Host
+
+    $query = @"
+    SELECT lc.Value AS ConfigValue,
+    LC.Name AS ConfigName,
+    a.id as AccountId,
+    l.Name as LedgerName,
+    l.DisplayName as LedgerDisplayName
+    FROM LedgerConfigs lc
+    JOIN Ledgers l ON lc.LedgerId = l.ID
+    LEFT JOIN Accounts a on l.Name  = a.Name
+    WHERE l.DisplayName LIKE '%$kwDisplayName%'
+"@
+    $rcConfig = getControlPanelDbConfig "rc"
+
+    $rows = @(Invoke-Sqlcmd -ServerInstance "$($rcConfig.ServerName).database.windows.net" -Query $query -Username "$($rcConfig.Username)" -Password "$($rcConfig.Password)" -Database "$($rcConfig.Name)")
+    foreach($r in $rows)
+    {
+        wh "$($r["Name"]) " "white" 0
+        wh "$($r["DisplayName"]) " "white" 0
+        wh "$($r["LedgerDbPassword"]) " "white" 1
+    }
+}
+
+
 main
