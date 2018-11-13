@@ -22,7 +22,7 @@ $conv_ledgerName = $LEDGER
 
 #real path to ledger folder in conversion machine
 $conv_ledgerFolder = "F:\Your Insurance Broker" 
-
+$conv_ledgerAccount = "convyins"
 $CONFIG_AZURE_BLOB_STORAGE_ACCOUNT = "FUCKINGTEST"
 $CONFIG_AZURE_BLOB_STORAGE_KEY = "FUCKINGTEST"
 $CONFIG_AUDIT_LISTING_FILE = "FUCKINGTEST"
@@ -114,7 +114,8 @@ $TASKS = @(
     @{name = "step16-PrepareReports"; handler = "prepareReports"; desc = "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count (Data count checker) reports to automation_reports folder"},
     @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
     @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
-    @{name = "test"; handler = "test"; desc = "test"}
+    @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
+    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"}
 )
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -127,6 +128,9 @@ function main() {
     $conv_ledger_db_backup_path = replaceIfCurrentPath $conv_ledger_db_backup_path
 
     printEnvironmentVariables
+
+    # check if azure context is initialized, if not, call add-azurermaccount
+    prepareAzureContext
 
     if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
         printUsage
@@ -144,6 +148,15 @@ function main() {
 }
 
 # COMMON FUNCTIONS #
+function prepareAzureContext()
+{
+    $azureContext = Get-AzureRmContext
+    if(!$($azureContext.Account))
+    {
+        wh "Azure context did not initialized, initialize now..."
+        Add-AzureRmAccount
+    }
+}
 function createFolderIfNotExists($path) {
     if (!(Test-Path -Path $path)) {
         wh "Folder $path does not existed, creating new one..."
@@ -277,8 +290,7 @@ function buildSolutions() {
     buildSolution  "$local_conversionRootPath\DatabaseConversion.sln" "Debug" @("PolicyNotesConversion.csproj", "DocumentDownloader.csproj", "DocumentMultipac.csproj")
 }
 function getConfigValue($appconfigFilePath, $xpath, $attribute) {
-    if(!(Test-Path -Path $appConfigFilePath))
-    {
+    if (!(Test-Path -Path $appConfigFilePath)) {
         wh "$appConfigFilePath not found" $color_error
         return
     }
@@ -517,13 +529,11 @@ function extract() {
     extractFileIntoFolder "$conv_appSourceFolder\boa-svu-audit.zip" "$conv_ledgerFolder\boa-svu-audit"
     #extract the config templates
     $templateFiles = ""
-    if($SOURCE_SYSTEM -eq $WINBEAT)
-    {
+    if ($SOURCE_SYSTEM -eq $WINBEAT) {
         $templateFiles = "$conv_appSourceFolder\appconfig_template_winbeat.zip"
     }
     else {
-        if($SOURCE_SYSTEM -eq $IBAIS)
-        {
+        if ($SOURCE_SYSTEM -eq $IBAIS) {
             $templateFiles = "$conv_appSourceFolder\appconfig_template_ibais.zip"
         }
     }
@@ -1046,8 +1056,7 @@ function backupBlobsFolder() {
 
 function openAzureDb() {
     $azureInsightDbConnString = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomConnectionStrings.config" 'connectionStrings/add[@name="DestinationDatabase"]' "connectionString"
-    if([string]::IsNullOrEmpty($azureInsightDbConnString))
-    {
+    if ([string]::IsNullOrEmpty($azureInsightDbConnString)) {
         return
     }
     $tokens = $azureInsightDbConnString.Split(";")
@@ -1075,45 +1084,36 @@ function openAzureDb() {
     ssms -S "$server" -d "$db" -U "$un" -P "$pw"
 }
 
-function getPasswordFromKeyVault($shortVaultName, $valueKeyName)
-{
+function getPasswordFromKeyVault($shortVaultName, $valueKeyName) {
     $vaultName = "sfts-boa-$shortVaultName-keyv-01"
     
     $attempts = 0
-    do
-    {
-        try
-        {
+    do {
+        try {
             $s = Get-AzureKeyVaultSecret -VaultName $vaultName -Name $valueKeyName
             return $s.SecretValueText
         }
-        catch
-        {
+        catch {
             $errorMessage = $_.Exception.Message
-            if ($errorMessage.Contains('The remote name could not be resolved'))
-            {
+            if ($errorMessage.Contains('The remote name could not be resolved')) {
                 Write-Host "    Error $errorMessage. Sleeping for 3 seconds and trying again"
                 $attempts = $attempts + 1
                 Start-Sleep -Seconds 3
             }
-            else
-            {
+            else {
                 Throw $errorMessage
             }        
         }
     } until (($attempts -gt 3))
 
-    if ($attempts -gt 3)
-    {
+    if ($attempts -gt 3) {
         Throw "Cannot access key vault $vaultName after 3 attempts"
     }
 }
-function getControlPanelDbConfig($environmentName, $controlPanelDrActivated = $false)
-{
+function getControlPanelDbConfig($environmentName, $controlPanelDrActivated = $false) {
     $controlPanelDbConfig = @{}
     $controlPanelDbConfig.ServerName = "boa-control-panel-db-01".Replace('-', '')
-    if ($controlPanelDrActivated -eq $true)
-    {
+    if ($controlPanelDrActivated -eq $true) {
         $controlPanelDbConfig.ServerName = "bdr-control-panel-db-01".Replace('-', '')
     }
     $controlPanelDbConfig.Name = "boa-$environmentName-control-panel"
@@ -1124,32 +1124,106 @@ function getControlPanelDbConfig($environmentName, $controlPanelDrActivated = $f
 }
 
 
-function test()
-{
+function searchLedgerInRc() {
     wh "Enter ledger display name keyword to search"
     $kwDisplayName = Read-Host
 
     $query = @"
     SELECT lc.Value AS ConfigValue,
     LC.Name AS ConfigName,
-    a.id as AccountId,
-    l.Name as LedgerName,
-    l.DisplayName as LedgerDisplayName
+    a.AccountId AS AccountId,
+    l.Name AS LedgerName,
+    l.DisplayName AS LedgerDisplayName
     FROM LedgerConfigs lc
     JOIN Ledgers l ON lc.LedgerId = l.ID
-    LEFT JOIN Accounts a on l.Name  = a.Name
+    CROSS APPLY (
+		SELECT ACCOUNTID 
+		FROM ACCOUNTS A 
+		WHERE A.NAME = '$conv_ledgerAccount'
+	) a
     WHERE l.DisplayName LIKE '%$kwDisplayName%'
+    ORDER BY L.NAME
 "@
     $rcConfig = getControlPanelDbConfig "rc"
-
+    $ssmsCommand = "ssms -S $($rcConfig.ServerName).database.windows.net -d $($rcConfig.Name) -U $($rcConfig.Username) -P $($rcConfig.Password)"
+    Set-Clipboard $ssmsCommand
+    wh "$ssmsCommand is copied to clipboard"
     $rows = @(Invoke-Sqlcmd -ServerInstance "$($rcConfig.ServerName).database.windows.net" -Query $query -Username "$($rcConfig.Username)" -Password "$($rcConfig.Password)" -Database "$($rcConfig.Name)")
-    foreach($r in $rows)
-    {
-        wh "$($r["Name"]) " "white" 0
-        wh "$($r["DisplayName"]) " "white" 0
-        wh "$($r["LedgerDbPassword"]) " "white" 1
+    wh "ConfigName`tConfigValue`tAccountId`tLedgerName`tDisplayName" "white"
+    $cname = ""
+    foreach ($r in $rows) {
+        $configName = $r["ConfigName"]
+        $configValue = $r["ConfigValue"]
+        $accountId = $r["AccountId"]
+        if (!$accountId) {$accountId = " "}
+        $ledgerName = $r["LedgerName"]
+        $displayName = $r["LedgerDisplayName"]
+
+        wh "$configName`t" "white" 0
+        wh "$configValue`t" "white" 0
+        wh "$accountId`t" "white" 0
+        wh "$ledgerName`t" "white" 0
+        wh "$displayName`t" "white" 1
+        if ($cname -and !$cname.Equals($ledgerName)) {
+            wh
+        }
+        $cname = $ledgerName
     }
 }
 
+function openDatabaseInSSMS() {
+    wh "Enter ledger name:"
+    $ledgerName = Read-Host
+    $query = @"
+    SELECT lc.Value AS ConfigValue,
+    LC.Name AS ConfigName,
+    l.Name AS LedgerName,
+    a.AccountId,
+    l.DisplayName AS LedgerDisplayName,
+    i.Name AS InfName
+    FROM LedgerConfigs lc
+    JOIN Ledgers l ON lc.LedgerId = l.ID
+    CROSS APPLY (
+		SELECT ACCOUNTID 
+		FROM ACCOUNTS A 
+		WHERE A.NAME = '$conv_ledgerAccount'
+    ) A
+    CROSS APPLY (
+		SELECT I.NAME 
+		FROM Infrastructures I 
+		JOIN ACCOUNTS A ON I.Id = A.InfrastructureId
+		WHERE A.Name = '$conv_ledgerAccount'
+	) I
+    WHERE l.Name = '$ledgerName'
+	ORDER BY L.Name
+"@
+    $rcConfig = getControlPanelDbConfig "rc"
+    $rows = @(Invoke-Sqlcmd -ServerInstance "$($rcConfig.ServerName).database.windows.net" -Query $query -Username "$($rcConfig.Username)" -Password "$($rcConfig.Password)" -Database "$($rcConfig.Name)")
+    if ($($rows.Count) -ne 0) {
+        $row = $null
+        foreach ($r in $rows) {
+            if ($r["ConfigName"] -eq "LedgerDbPassword") {
+                $row = $r
+            }
+        }
+        if (!$row) {
+            wh "Not found information for $ledgerName" $color_error
+            return
+        }
+        $ledgerDbPassword = $row["ConfigValue"]
+        $accountId = $row["AccountId"]
+        if (!$accountId) {$accountId = " "}
+        $infName = $row["InfName"]
+        $environmentName = "rc"
+        $ledgerDbServer = "boa$($environmentName)$($infName)db01.database.windows.net"
+        $ledgerDb = "boa$accountId`db$ledgerName"
+        $ledgerDbUsername = "boa_$ledgerName"
+
+        $ssmsCommand = "ssms -S `"$ledgerDbServer`" -d `"$ledgerDb`" -U `"$ledgerDbUsername`" -P `"$ledgerDbPassword`""
+        Set-Clipboard $ssmsCommand
+        wh "$ssmsCommand is copied to clipboard"
+        Invoke-Expression $ssmsCommand
+    }
+}
 
 main
