@@ -29,7 +29,7 @@ $CONFIG_AUDIT_LISTING_FILE = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX = "FUCKINGTEST"
 $CONFIG_AZURE_INSIGHT_DB_PASSWORD = "FUCKINGTEST"
-$conv_SVUListingFile = "AuditPolicyList.YOURINS_HQ.2018-05-25.csv"
+$conv_SVUListingFile = ""
 
 #local working folder (in your development machine), if is current path, must be set to ".\"
 $local_workingFolder = "d:\conversion_auto\$LEDGER"
@@ -78,6 +78,7 @@ function printUsage() {
     wh "-task"
     foreach ($t in $TASKS) {
         wh "`t$($t.name)"
+        wh "`t`t$($t.desc)" "cyan"
     }
 }
 function printVariable($name, $value) {
@@ -206,14 +207,13 @@ function extractFileIntoFolder($sourcePath, $destinationPath) {
                 Remove-Item -Path $destinationPath -Force -Recurse
             }
             else {
-                wh "You choose to no delete, exist script now"
-                return
+                wh "You choose to no delete, extraction will overrite the current ones"
             }
         }
     }
     
     wh "Extracting file $sourcePath into $destinationPath"
-    Expand-Archive -LiteralPath $sourcePath -DestinationPath $destinationPath
+    Expand-Archive -LiteralPath $sourcePath -DestinationPath $destinationPath -Force
 }
 function getSqlDefaultPath($type) {
     $query = "SELECT SERVERPROPERTY('InstanceDefault" + $type + "Path') as [Path]"
@@ -447,14 +447,12 @@ function backupOldSourceCode() {
     wh "Do you fucking want to backup old source codes? [y/n], choose yes if you want to use the new source code, or no if you don't, default is [n]"
     $confirm = Read-Host
     if ($confirm -eq "y") {
-        wh "Moving old BOALedgerCreate.sql to $adminBackupFolder"
-        Move-Item -Path "$adminFolder\*BOALedgerCreate.sql" -Destination $adminBackupFolder
-       
+        
         wh "Backing up old source codes into $backupFolder"
         # backup console app
-        backupFolder "$conv_ledgerFolder\DatabaseConversion.ConsoleApp" $backupFolder
+        backupFolder "$conv_ledgerFolder\DatabaseConversion.ConsoleApp" $backupFolder @("Logs")
         # backup import blob app
-        backupFolder  "$conv_ledgerFolder\DatabaseConversion.AzureImportBlob" $backupFolder
+        backupFolder  "$conv_ledgerFolder\DatabaseConversion.AzureImportBlob" $backupFolder @("Logs")
         # backup data count checker app
         backupFolder  "$conv_ledgerFolder\DataCountChecker" $backupFolder
         # backup import schedule app
@@ -481,13 +479,20 @@ function backupOldSourceCode() {
         }
     }
 }
-function backupFolder($source, $dest) {
+function backupFolder($source, $dest, [string[]]$exclude = @()) {
     if (!(Test-Path $source)) {
         wh "$source folder does not existed, skip backup" $color_warning
         return
     }
     wh "Moving all items from $source to $dest"
-    Move-Item "$source" $dest
+    if(!$exclude)
+    {
+        Move-Item "$source" "$dest"
+    }
+    else {
+        $directoryName = Split-Path "$source" -Leaf
+        Get-ChildItem -Path "$source" -Exclude $exclude | Move-Item -Destination "$dest\$directoryName"
+    }
 }
 #archive conversion app and related tools, this step should be ran in development machine
 function archive() {
@@ -813,10 +818,14 @@ function createInsightDb() {
         backupDb $conv_ledger_insight_db $conv_defaultDatabaseBackupFolder
         #delete the old one
         $delQuery = @"
-        USE MASTER 
+        USE MASTER
+        GO
+        ALTER DATABASE [$conv_ledger_insight_db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
         GO 
         DROP DATABASE $conv_ledger_insight_db
 "@
+        wh "Deleting database $conv_ledger_insight_db with query"
+        Write-Host $delQuery
         Invoke-Sqlcmd -ServerInstance '.' -Query $delQuery
     }
 
@@ -1226,4 +1235,8 @@ function openDatabaseInSSMS() {
     }
 }
 
+function discoverAndApplyConfigurations()
+{
+    
+}
 main
