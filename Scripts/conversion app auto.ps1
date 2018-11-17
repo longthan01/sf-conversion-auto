@@ -116,7 +116,8 @@ $TASKS = @(
     @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
     @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
     @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
-    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"}
+    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"},
+    @{name = "test"; handler = "extractRemotely"; desc = "test"}
 )
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -178,8 +179,8 @@ function zipFileIntoFolder ($sourcePath, $destinationPath) {
         Write-Host
         wh "'$destinationPath' folder is existing, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 1
         Write-Host
-        $confirm = Read-Host
-        if ($confirm -eq 'y') {
+        $confirm = (Read-Host).Trim()
+        if ($confirm -eq "y") {
             Remove-Item -Path $destinationPath -Force -Recurse
         }
         else {
@@ -202,8 +203,8 @@ function extractFileIntoFolder($sourcePath, $destinationPath) {
             Write-Host
             wh "'$destinationPath 'is not empty, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 0
             Write-Host
-            $confirm = Read-Host
-            if ($confirm -eq 'y') {
+            $confirm = (Read-Host).Trim()
+            if ($confirm -eq "y") {
                 Remove-Item -Path $destinationPath -Force -Recurse
             }
             else {
@@ -350,7 +351,6 @@ function retrieveDatabaseLogicalNames($backupFile) {
     $result.log = $logLogicalName
     return $result
 }
-
 function wh($value = "", $color = $color_info, $newLine = 1) {
     if ([string]::IsNullOrEmpty($value)) {
         Write-Host
@@ -401,6 +401,26 @@ function checkDbExist($dbName) {
     wh "$dbName exsited"
     return $true
 }
+function doWorkRemotely($remoteWorkingPath, $serverName, $userName, $password, $callback) {
+    $psDriveName = ""
+    $psDriveCode = 90 #start from Z
+    for($i = $psDriveCode; $i -ge 65; $i--)
+    {
+        $byte = @($i)
+        $psDriveName = [System.Text.Encoding]::ASCII.GetString($byte)
+        $serializedRemotePath = $remoteWorkingPath.Replace(":", "$")
+        if (!(Test-Path -Path "$psDriveName`:")) {
+            $pwd = ConvertTo-SecureString -String "$password" -AsPlainText -Force
+            $cred = New-Object System.Management.Automation.PsCredential("$userName", $pwd)
+            New-PSDrive -Name "$psDriveName" -PSProvider filesystem -Root "\\$serverName\$serializedRemotePath" -Credential $cred -Scope global
+            &$callback $psDriveName
+            Remove-PSDrive "$psDriveName"
+            return
+        }
+    }
+    throw "Drive $psDriveName existed"
+}
+# END COMMON FUNCTIONS #
 
 ### RUN CONVERSION APP STEPS ###
 # prepare environment like create all needing folder, copy audit files, backup Run1, backup old source codes, etc...
@@ -437,7 +457,7 @@ function backupOldSourceCode() {
     }
     else {
         wh "Do you fucking want to backup admin script (BOALedgerCreate.sql)? [y/n], default is [n]" $color_warning
-        $confirm = Read-Host
+        $confirm = (Read-Host).Trim()
         if ($confirm -eq "y") {
             wh "Moving old BOALedgerCreate.sql to $adminBackupFolder"
             Move-Item -Path "$adminFolder\*BOALedgerCreate.sql" -Destination $adminBackupFolder
@@ -445,7 +465,7 @@ function backupOldSourceCode() {
     }
    
     wh "Do you fucking want to backup old source codes? [y/n], choose yes if you want to use the new source code, or no if you don't, default is [n]"
-    $confirm = Read-Host
+    $confirm = (Read-Host).Trim()
     if ($confirm -eq "y") {
         
         wh "Backing up old source codes into $backupFolder"
@@ -595,7 +615,7 @@ function setConfigs($appConfigFilePath, $configHashArray) {
 function config() {
     wh "We will config app and connection string settings for a bunch of apps" $color_warning
     wh "if this is the n-th run (n > 1), this step shouldn't be performed, fucking confirm to continue (y/n)? default is [n]" $color_warning
-    $confirm = Read-Host
+    $confirm = (Read-Host).Trim()
     if ($confirm -eq "y") {
         $hashConfigurations = @(
             @{key = "[AZURE_BLOB_STORAGE_ACCOUNT]"; value = $CONFIG_AZURE_BLOB_STORAGE_ACCOUNT},
@@ -673,7 +693,7 @@ function restoreDb($backupFile, $dbName) {
     $bakFile = $(Split-Path $backupFile -Leaf).Replace(".bak", "")
     if ($bakFile -ne $dbName) {
         wh "The backup file $backupFile IS NOT THE SAME WITH database name $dbName, you you fucking want to continue? [y/n], default is [n]" $color_warning
-        $confirm = Read-Host
+        $confirm = (Read-Host).Trim()
         if ($confirm -eq "y") {
             $dataDefaultPath = getSqlDefaultPath 'Data'
             $logDefaultPath = getSqlDefaultPath 'Log'
@@ -714,8 +734,8 @@ function restoreLedgerDbWinbeat() {
     Write-Host
     wh "Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
     Write-Host
-    $confirm = Read-Host 
-    if ($confirm -eq 'y') {
+    $confirm = (Read-Host).Trim()
+    if ($confirm -eq "y") {
         backupDb $conv_ledger_db $conv_defaultDatabaseBackupFolder
         restoreDb $conv_ledger_db_backup_path $conv_ledger_db
     }
@@ -726,8 +746,8 @@ function restoreLedgerDbIbais() {
     Write-Host
     wh "Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
     Write-Host
-    $confirm = Read-Host 
-    if ($confirm -eq 'y') {
+    $confirm = (Read-Host).Trim()
+    if ($confirm -eq "y") {
         backupDb $conv_ledger_db $conv_defaultDatabaseBackupFolder
 
         #delete the old one
@@ -1235,8 +1255,14 @@ function openDatabaseInSSMS() {
     }
 }
 
-function discoverAndApplyConfigurations()
+function copyAndExtractRemotely($psNetworkDrive)
 {
-    
+    Copy-Item -Path "$local_workingFolder\DatabaseConversion.ConsoleApp.zip" -Destination "$psNetworkDrive`:\"
+    extractFileIntoFolder "$psNetworkDrive`:\DatabaseConversion.ConsoleApp.zip" "$psNetworkDrive`:\DatabaseConversion.ConsoleApp"
+}
+
+function extractRemotely()
+{
+    doWorkRemotely "c:\nhp" "35.201.6.252" "nhp1905" "O|2)S8IJorQw&ra" "copyAndExtractRemotely" 
 }
 main
