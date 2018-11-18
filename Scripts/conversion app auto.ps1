@@ -171,7 +171,7 @@ function replaceIfCurrentPath($path) {
     }
     return $path
 }
-function zipFileIntoFolder ($sourcePath, $destinationPath) {
+function zipFile ($sourcePath, $destinationPath) {
    
     # check whether destination path is existed, if it is, do delete
     if (Test-Path -path $destinationPath) {
@@ -519,21 +519,21 @@ function archive() {
     createFolderIfNotExists $local_workingFolder
 
     ### ZIP CONVERSION APP ###
-    zipFileIntoFolder $local_conversionRootPath'\DatabaseConversion.ConsoleApp\bin\Debug\*' $local_workingFolder'\DatabaseConversion.ConsoleApp.zip'
+    zipFile $local_conversionRootPath'\DatabaseConversion.ConsoleApp\bin\Debug\*' $local_workingFolder'\DatabaseConversion.ConsoleApp.zip'
 
     ### ZIP IMPORT BLOB APP ###
-    zipFileIntoFolder $local_conversionRootPath'\DatabaseConversion.AzureImportBlob\bin\Debug\*' $local_workingFolder'\DatabaseConversion.AzureImportBlob.zip'
+    zipFile $local_conversionRootPath'\DatabaseConversion.AzureImportBlob\bin\Debug\*' $local_workingFolder'\DatabaseConversion.AzureImportBlob.zip'
 
     ### ZIP DATA COUNT CHECKER APP ###
-    zipFileIntoFolder $local_conversionRootPath'\DataCountChecker\bin\Debug\*' $local_workingFolder'\DataCountChecker.zip'
+    zipFile $local_conversionRootPath'\DataCountChecker\bin\Debug\*' $local_workingFolder'\DataCountChecker.zip'
 
     ### ZIP IMPORT SCHEDULE APP ###
-    zipFileIntoFolder $local_conversionRootPath'\ImportedSchedule\bin\Debug\*' $local_workingFolder'\ImportedSchedule.zip'
+    zipFile $local_conversionRootPath'\ImportedSchedule\bin\Debug\*' $local_workingFolder'\ImportedSchedule.zip'
 
     ### ZIP AUDIT APPS ###
-    zipFileIntoFolder $local_sunriseAuditRootPath'\bin\debug\*' $local_workingFolder'\boa-sunrise-audit.zip'
-    zipFileIntoFolder $local_sunriseExportRootPath'\bin\debug\*' $local_workingFolder'\boa-sunrise-export.zip'
-    zipFileIntoFolder $local_svuAuditRootPath'\bin\debug\*' $local_workingFolder'\boa-svu-audit.zip'
+    zipFile $local_sunriseAuditRootPath'\bin\debug\*' $local_workingFolder'\boa-sunrise-audit.zip'
+    zipFile $local_sunriseExportRootPath'\bin\debug\*' $local_workingFolder'\boa-sunrise-export.zip'
+    zipFile $local_svuAuditRootPath'\bin\debug\*' $local_workingFolder'\boa-svu-audit.zip'
 }
 
 #extract conversion console app and related tools, this step should be ran in development machine
