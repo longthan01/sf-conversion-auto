@@ -11,7 +11,7 @@ Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
 #############################################################################################################################################################################################################
 ### FILL OUT THE FOLOWWING VARIABLES BEFORE RUN THE SCRIPT ###
 #THE LEDGER BEING MIGRATE
-$LEDGER = "YourInsurance"
+$LEDGER = "ProfessionalIB"
 
 $WINBEAT = "WINBEAT"
 $IBAIS = "IBAIS"
@@ -21,16 +21,7 @@ $SOURCE_SYSTEM = $IBAIS
 $conv_ledgerName = $LEDGER
 
 #real path to ledger folder in conversion machine
-$conv_ledgerFolder = "F:\Your Insurance Broker" 
-$conv_ledgerAccount = "convyins"
-$CONFIG_AZURE_BLOB_STORAGE_ACCOUNT = "FUCKINGTEST"
-$CONFIG_AZURE_BLOB_STORAGE_KEY = "FUCKINGTEST"
-$CONFIG_AUDIT_LISTING_FILE = "FUCKINGTEST"
-$CONFIG_AZURE_INSIGHT_DB = "FUCKINGTEST"
-$CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX = "FUCKINGTEST"
-$CONFIG_AZURE_INSIGHT_DB_PASSWORD = "FUCKINGTEST"
-$conv_SVUListingFile = ""
-
+$conv_ledgerFolder = "F:\$conv_ledgerName" 
 #local working folder (in your development machine), if is current path, must be set to ".\"
 $local_workingFolder = "d:\conversion_auto\$LEDGER"
  
@@ -49,6 +40,11 @@ $local_sunriseExportRootPath = "D:\sfg-repos\boa-sunrise-export"
 $local_svuAuditRootPath = "D:\sfg-repos\boa-svu-audit"
 
 #conversion machine paths
+$CONV_MACHINES = @(
+    @{name = "conv02"; ip = "13.77.2.124`:50201"; username = "namph.st76389@stfsazure.onmicrosoft.com"; password = ""}
+)
+
+$conv_credentialsConfigFile = "$conv_ledgerFolder\credentials.txt"
 $conv_appSourceFolder = $conv_ledgerFolder
 $conv_automationReportsFolder = "$conv_ledgerFolder\automation_reports"
 $conv_automationBackupFolder = $conv_ledgerFolder + "\automation_backups"
@@ -90,7 +86,6 @@ function printEnvironmentVariables() {
     printVariable "LEDGER" $LEDGER
     printVariable "SOURCE_SYSTEM" $SOURCE_SYSTEM
     printVariable "conv_ledgerFolder" $conv_ledgerFolder
-    printVariable "conv_SVUListingFile" $conv_SVUListingFile
     printVariable "conv_ledger_db_backup_path" $conv_ledger_db_backup_path
     wh
 }
@@ -116,8 +111,8 @@ $TASKS = @(
     @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
     @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
     @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
-    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"},
-    @{name = "test"; handler = "extractRemotely"; desc = "test"}
+    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"}
+    # @{name = "test"; handler = "test"; desc = "test"}
 )
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -150,11 +145,64 @@ function main() {
 }
 
 # COMMON FUNCTIONS #
-function prepareAzureContext()
+
+###################################################
+### Read Name=Value config file into hash table
+###################################################
+function readConfigFile($filePath)
 {
-    $azureContext = Get-AzureRmContext
-    if(!$($azureContext.Account))
+    $found = Test-Path($filePath)
+    if ($found -eq $false)
     {
+        $msg = "ERROR: Configuration file ", $filePath, " not found"
+        Write-Host $msg
+        Throw $msg
+    }
+    
+    $nvp = @{}
+
+    $lines = Get-Content $filePath
+
+    foreach ($line in $lines)
+    {
+        if ($line.length -eq 0)
+        { continue }
+        
+        if ($line.StartsWith("#"))
+        { continue }
+
+        $nv = $line.split("=", 2)
+        $nv[0] = $nv[0].Trim()
+        $nv[1] = $nv[1].Trim()
+        
+        if ($nvp.ContainsKey($nv[0]))
+        {
+            $nvp.set_item($nv[0], $nv[1])
+        }
+        else
+        {
+            $nvp.add($nv[0], $nv[1])
+        }
+    }
+    
+    return $nvp
+}
+
+###################################################
+# Retrieves a config field value and checks it
+###################################################
+function getConfigFieldValue($config, $fieldName)
+{
+    if (-not $config.ContainsKey($fieldName))
+    { Throw ("ERROR: " + $fieldName + " not set in config file.") }
+
+    $value = $config[$fieldName]
+    return $value
+}
+
+function prepareAzureContext() {
+    $azureContext = Get-AzureRmContext
+    if (!$($azureContext.Account)) {
         wh "Azure context did not initialized, initialize now..."
         Add-AzureRmAccount
     }
@@ -404,14 +452,14 @@ function checkDbExist($dbName) {
 function doWorkRemotely($remoteWorkingPath, $serverName, $userName, $password, $callback) {
     $psDriveName = ""
     $psDriveCode = 90 #start from Z
-    for($i = $psDriveCode; $i -ge 65; $i--)
-    {
+    for ($i = $psDriveCode; $i -ge 65; $i--) {
         $byte = @($i)
         $psDriveName = [System.Text.Encoding]::ASCII.GetString($byte)
         $serializedRemotePath = $remoteWorkingPath.Replace(":", "$")
         if (!(Test-Path -Path "$psDriveName`:")) {
             $pwd = ConvertTo-SecureString -String "$password" -AsPlainText -Force
             $cred = New-Object System.Management.Automation.PsCredential("$userName", $pwd)
+            wh "\\$serverName\$serializedRemotePath"
             New-PSDrive -Name "$psDriveName" -PSProvider filesystem -Root "\\$serverName\$serializedRemotePath" -Credential $cred -Scope global
             &$callback $psDriveName
             Remove-PSDrive "$psDriveName"
@@ -505,8 +553,7 @@ function backupFolder($source, $dest, [string[]]$exclude = @()) {
         return
     }
     wh "Moving all items from $source to $dest"
-    if(!$exclude)
-    {
+    if (!$exclude) {
         Move-Item "$source" "$dest"
     }
     else {
@@ -573,7 +620,7 @@ function extract() {
         return
     }
     wh "Extracting file $templateFiles into $conv_ledgerFolder"
-    Expand-Archive -LiteralPath "$conv_appSourceFolder\appconfig_template.zip" -DestinationPath $conv_ledgerFolder -Force
+    Expand-Archive -LiteralPath "$templateFiles" -DestinationPath $conv_ledgerFolder -Force
 }
 
 #config for each *.config file for a fucking bunch of projects
@@ -613,21 +660,35 @@ function setConfigs($appConfigFilePath, $configHashArray) {
     $appConfig.Save($appConfigFilePath)
 }
 function config() {
+    if (!(Test-Path -Path $conv_credentialsConfigFile))
+    {
+        wh "$conv_credentialsConfigFile did not exist" $color_error
+        return
+    }
+    $credentialConfigs = readConfigFile $conv_credentialsConfigFile
+
+    $azureBlobStorageAccountName = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_BLOB_STORAGE_ACCOUNT"
+    $azureBlobStorageAccountKey = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_BLOB_STORAGE_KEY"
+    $auditListingFileName = getConfigFieldValue $credentialConfigs "CONFIG_AUDIT_LISTING_FILE"
+    $azureInsightDatabase = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_INSIGHT_DB"
+    $azureInsightDatabaseUserSuffix = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX"
+    $azureInsightDatabasePassword = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_INSIGHT_DB_PASSWORD"
+
     wh "We will config app and connection string settings for a bunch of apps" $color_warning
     wh "if this is the n-th run (n > 1), this step shouldn't be performed, fucking confirm to continue (y/n)? default is [n]" $color_warning
     $confirm = (Read-Host).Trim()
     if ($confirm -eq "y") {
         $hashConfigurations = @(
-            @{key = "[AZURE_BLOB_STORAGE_ACCOUNT]"; value = $CONFIG_AZURE_BLOB_STORAGE_ACCOUNT},
-            @{key = "[AZURE_BLOB_STORAGE_KEY]"; value = $CONFIG_AZURE_BLOB_STORAGE_KEY},
+            @{key = "[AZURE_BLOB_STORAGE_ACCOUNT]"; value = $azureBlobStorageAccountName},
+            @{key = "[AZURE_BLOB_STORAGE_KEY]"; value = $azureBlobStorageAccountKey},
             @{key = "[LEDGER_NAME]"; value = $conv_ledgerName},
             @{key = "[LEDGER_FOLDER]"; value = $conv_ledgerFolder},
-            @{key = "[AUDIT_LISTING_FILE]"; value = $CONFIG_AUDIT_LISTING_FILE},
+            @{key = "[AUDIT_LISTING_FILE]"; value = $auditListingFileName},
             @{key = "[CONV_LEDGER_INSIGHT_DB]"; value = $conv_ledger_insight_db},
             @{key = "[CONV_LEDGER_DB]"; value = $conv_ledger_db},
-            @{key = "[AZURE_INSIGHT_DB]"; value = $CONFIG_AZURE_INSIGHT_DB},
-            @{key = "[AZURE_INSIGHT_DB_USER_SUFFIX]"; value = $CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX},
-            @{key = "[AZURE_INSIGHT_DB_PASSWORD]"; value = $CONFIG_AZURE_INSIGHT_DB_PASSWORD}
+            @{key = "[AZURE_INSIGHT_DB]"; value = $azureInsightDatabase},
+            @{key = "[AZURE_INSIGHT_DB_USER_SUFFIX]"; value = $azureInsightDatabaseUserSuffix},
+            @{key = "[AZURE_INSIGHT_DB_PASSWORD]"; value = $azureInsightDatabasePassword}
         )
         Set-Location $conv_ledgerFolder
         $configFiles = @((Get-ChildItem -Path '*.Config' -Include "*.config").FullName)
@@ -979,11 +1040,8 @@ function runAuditTools() {
     Start-Sleep -Milliseconds 500
     Set-Location -Path $executionFolder
     $listingFile = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomAppSettings.config" 'appSettings/add[@key="SvuCSVFilePath"]' "value"
-    if (!$listingFile) {
-        $listingFile = "$conv_ledgerFolder\Raw data\$conv_SVUListingFile"
-        if (!(Test-Path -Path $listingFile)) {
-            wh "$listingFile does not existed" $color_warning
-        }
+    if (!(Test-Path -Path $listingFile)) {
+        wh "$listingFile does not existed" $color_warning
     }
     auditAutomationTool -procName "SvuAudit" -controlId txtOpportunityFile -controlValue $listingFile
     auditAutomationTool -procName "SvuAudit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
@@ -1161,14 +1219,15 @@ function searchLedgerInRc() {
     SELECT lc.Value AS ConfigValue,
     LC.Name AS ConfigName,
     a.AccountId AS AccountId,
+    a.[Name] AS AccountName,
     l.Name AS LedgerName,
     l.DisplayName AS LedgerDisplayName
     FROM LedgerConfigs lc
     JOIN Ledgers l ON lc.LedgerId = l.ID
     CROSS APPLY (
-		SELECT ACCOUNTID 
+		SELECT ACCOUNTID, [Name]
 		FROM ACCOUNTS A 
-		WHERE A.NAME = '$conv_ledgerAccount'
+		WHERE A.DisplayName LIKE '%$kwDisplayName%'
 	) a
     WHERE l.DisplayName LIKE '%$kwDisplayName%'
     ORDER BY L.NAME
@@ -1178,19 +1237,21 @@ function searchLedgerInRc() {
     Set-Clipboard $ssmsCommand
     wh "$ssmsCommand is copied to clipboard"
     $rows = @(Invoke-Sqlcmd -ServerInstance "$($rcConfig.ServerName).database.windows.net" -Query $query -Username "$($rcConfig.Username)" -Password "$($rcConfig.Password)" -Database "$($rcConfig.Name)")
-    wh "ConfigName`tConfigValue`tAccountId`tLedgerName`tDisplayName" "white"
+    wh "ConfigName`tConfigValue`tAccountId`tAccountName`tLedgerName`tDisplayName" "white"
     $cname = ""
     foreach ($r in $rows) {
         $configName = $r["ConfigName"]
         $configValue = $r["ConfigValue"]
         $accountId = $r["AccountId"]
         if (!$accountId) {$accountId = " "}
+        $accountName = $r["AccountName"]
         $ledgerName = $r["LedgerName"]
         $displayName = $r["LedgerDisplayName"]
 
         wh "$configName`t" "white" 0
         wh "$configValue`t" "white" 0
         wh "$accountId`t" "white" 0
+        wh "$accountName`t" "white" 0
         wh "$ledgerName`t" "white" 0
         wh "$displayName`t" "white" 1
         if ($cname -and !$cname.Equals($ledgerName)) {
@@ -1213,15 +1274,15 @@ function openDatabaseInSSMS() {
     FROM LedgerConfigs lc
     JOIN Ledgers l ON lc.LedgerId = l.ID
     CROSS APPLY (
-		SELECT ACCOUNTID 
+		SELECT AccountId
 		FROM ACCOUNTS A 
-		WHERE A.NAME = '$conv_ledgerAccount'
+		WHERE A.Id = L.AccountId
     ) A
     CROSS APPLY (
 		SELECT I.NAME 
 		FROM Infrastructures I 
-		JOIN ACCOUNTS A ON I.Id = A.InfrastructureId
-		WHERE A.Name = '$conv_ledgerAccount'
+		JOIN ACCOUNTS Acc ON I.Id = Acc.InfrastructureId
+		WHERE A.AccountId = Acc.Id
 	) I
     WHERE l.Name = '$ledgerName'
 	ORDER BY L.Name
@@ -1255,14 +1316,13 @@ function openDatabaseInSSMS() {
     }
 }
 
-function copyAndExtractRemotely($psNetworkDrive)
-{
-    Copy-Item -Path "$local_workingFolder\DatabaseConversion.ConsoleApp.zip" -Destination "$psNetworkDrive`:\"
-    extractFileIntoFolder "$psNetworkDrive`:\DatabaseConversion.ConsoleApp.zip" "$psNetworkDrive`:\DatabaseConversion.ConsoleApp"
+function distributeAutomationScript($psNetworkDrive) {
+    Copy-Item -Path ".\conversion app auto.ps1" -Destination "$psNetworkDrive`:\"
 }
 
-function extractRemotely()
-{
-    doWorkRemotely "c:\nhp" "35.201.6.252" "nhp1905" "O|2)S8IJorQw&ra" "copyAndExtractRemotely" 
+function test() {
+    $conv02 = ($CONV_MACHINES |? {$_.name -eq "conv02"})
+    wh "$($conv02.ip)"
+    doWorkRemotely "f:\" "$($conv02.ip)" "$($conv02.username)" "$($conv02.password)" "distributeAutomationScript"
 }
 main
