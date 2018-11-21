@@ -816,6 +816,7 @@ function restoreLedgerDbIbais() {
             wh "Deleting $conv_ledger_db"
             $delQuery = @"
         USE MASTER 
+        ALTER DATABASE [$conv_ledger_db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
         GO 
         DROP DATABASE $conv_ledger_db
 "@
