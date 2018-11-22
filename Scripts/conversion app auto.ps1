@@ -1,150 +1,7 @@
-﻿Param(
+﻿
+Param(
     [string]$task = ''
 )
-
-# global variables #
-$executionFolder = Split-Path $MyInvocation.MyCommand.Path
-#path to msbuild, use for auto build
-Set-Alias msbuild "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"
-Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
-
-#############################################################################################################################################################################################################
-### FILL OUT THE FOLOWWING VARIABLES BEFORE RUN THE SCRIPT ###
-#THE LEDGER BEING MIGRATE
-$LEDGER = "ProfessionalIB"
-
-$WINBEAT = "WINBEAT"
-$IBAIS = "IBAIS"
-
-$SOURCE_SYSTEM = $IBAIS
-
-$conv_ledgerName = $LEDGER
-
-#real path to ledger folder in conversion machine
-$conv_ledgerFolder = "F:\$conv_ledgerName" 
-#local working folder (in your development machine), if is current path, must be set to ".\"
-$local_workingFolder = "d:\conversion_auto\$LEDGER"
- 
-#TEST PATH on local machine, only use for testing purpose at development time, comment out when run in conversion machine
-#$conv_ledgerFolder = $local_workingFolder
-
-#path to backup file, only use if the source system is winbeat
-$conv_ledger_db_backup_path = "" #"$conv_ledgerFolder\Raw Data\Melbourne.bak"
-
-#############################################################################################################################################################################################################
-
-#path to your repo folders
-$local_conversionRootPath = "D:\sfg-repos\insight_data_conversion\boa-data-conversion"
-$local_sunriseAuditRootPath = "D:\sfg-repos\boa-sunrise-audit"
-$local_sunriseExportRootPath = "D:\sfg-repos\boa-sunrise-export"
-$local_svuAuditRootPath = "D:\sfg-repos\boa-svu-audit"
-
-#conversion machine paths
-$CONV_MACHINES = @(
-    @{name = "conv02"; ip = "13.77.2.124`:50201"; username = "namph.st76389@stfsazure.onmicrosoft.com"; password = ""}
-)
-
-$conv_credentialsConfigFile = "$conv_ledgerFolder\credentials.txt"
-$conv_appSourceFolder = $conv_ledgerFolder
-$conv_automationReportsFolder = "$conv_ledgerFolder\automation_reports"
-$conv_automationBackupFolder = $conv_ledgerFolder + "\automation_backups"
-$conv_defaultDatabaseBackupFolder = "$conv_automationBackupFolder\database"
-$conv_defaultSourceCodeBackupFolder = "$conv_automationBackupFolder\source code"
-$conv_changeCollationSqlScriptPath = "$conv_ledgerFolder\Change_Collation.sql"
-$conv_copyCustomConfigScriptPath = "$conv_ledgerFolder\Copy_Custom_Config.cmd"
-$conv_siteSpecificScriptsFolder = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\SiteSpecific\$conv_ledgerName"
-
-$conv_ledger_db = $conv_ledgerName
-$conv_ledger_insight_db = "$conv_ledgerName" + "Insight"
-
-$conv_preUploadReportsFolder = "$conv_ledgerFolder\Run1\PreUploadReports\Results"
-$conv_postConversionDataVerificationReportsForConsultantFolder = "$conv_ledgerFolder\Run1\PostConversionDataVerificationsReports\ForConsultant"
-$conv_recordCountReportsFolder = "$conv_ledgerFolder\Run1\Record Counts"
-
-$conv_sunriseAuditResultPath = "$conv_ledgerFolder\boa-sunrise-audit\Output"
-$conv_svuAuditResultPath = "$conv_ledgerFolder\boa-svu-audit\Output"
-
-#utility variables
-$color_info = 'green'
-$color_warning = 'yellow'
-$color_error = 'red'
-
-function printUsage() {
-    wh "Params:"
-    wh "-task"
-    foreach ($t in $TASKS) {
-        wh "`t$($t.name)"
-        wh "`t`t$($t.desc)" "cyan"
-    }
-}
-function printVariable($name, $value) {
-    wh
-    wh "`t`t`$$name`: " "cyan" 0
-    wh $value "magenta" 0
-}
-function printEnvironmentVariables() {
-    printVariable "LEDGER" $LEDGER
-    printVariable "SOURCE_SYSTEM" $SOURCE_SYSTEM
-    printVariable "conv_ledgerFolder" $conv_ledgerFolder
-    printVariable "conv_ledger_db_backup_path" $conv_ledger_db_backup_path
-    wh
-}
-
-$TASKS = @(
-    @{name = "step0-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
-    @{name = "step1-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
-    @{name = "step2-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
-    @{name = "step3-Zip"; handler = "archive"; desc = "Archive the conversion and related tools to $local_workingFolder"},
-    @{name = "step4-Extract"; handler = "extract"; desc = "Extract the conversion and related tools to $conv_ledgerFolder"},
-    @{name = "step5-Config"; handler = "config"; desc = "Read the CONFIG_ variables, then replace it from the custom config file placeholders"},
-    @{name = "step6-CheckConfig"; handler = "checkConfig"; desc = "Open custom config files to check ether your configurations are fucking right"},
-    @{name = "step7-ApplyConfig"; handler = "applyConfig"; desc = "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"},
-    @{name = "step8-RecheckConfig"; handler = "recheckConfig"; desc = "Open main config files and fucking re-check them by your fucking eyes"},
-    @{name = "step9-RestoreLedgerDb"; handler = "restoreLedgerDb"; desc = "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"},
-    @{name = "step10-ChangeCollation"; handler = "changeCollationLedgerDb"; desc = "Check if the $conv_ledger_db has the right collation, if it's not, open the change collation script in ssms then you need to run it by your fucking hands"},
-    @{name = "step11-CopyCreateInsightDbScript"; handler = "copyInsightCreationScript"; desc = "Copy Insight database creation script, this function basically copy out the path to script folder to clipboard. You need to open build machine then paste it to windows explorer to open the folder then copy the latest script by your fucking hands"},
-    @{name = "step12-CreateInsightDB"; handler = "createInsightDb"; desc = "Create $($conv_ledgerName + "Insight") database, if the db is already existed, backup it to $conv_automationBackupFolder"},
-    @{name = "step13-CheckPreconversionScripts"; handler = "checkPreConversionScripts"; desc = "Open $conv_siteSpecificScriptsFolder\Preconversion folder to see if there's any script need to run before the console app"},
-    @{name = "step14-CheckPostConversionScripts"; handler = "checkPostConversionScripts"; desc = "Open $conv_siteSpecificScriptsFolder\Postconversion folder to see if there's any script need to run after the console app"},
-    @{name = "step15-RunaAditTools"; handler = "runAuditTools"; desc = "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"},
-    @{name = "step16-PrepareReports"; handler = "prepareReports"; desc = "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count (Data count checker) reports to automation_reports folder"},
-    @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
-    @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
-    @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
-    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"}
-    # @{name = "test"; handler = "test"; desc = "test"}
-)
-function main() {
-    $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
-    $conv_appSourceFolder = replaceIfCurrentPath $conv_appSourceFolder
-    $conv_automationBackupFolder = replaceIfCurrentPath $conv_automationBackupFolder
-    $conv_automationReportsFolder = replaceIfCurrentPath $conv_automationReportsFolder
-    $conv_defaultDatabaseBackupFolder = replaceIfCurrentPath $conv_defaultDatabaseBackupFolder
-    $conv_changeCollationSqlScriptPath = replaceIfCurrentPath $conv_changeCollationSqlScriptPath
-    $conv_copyCustomConfigScriptPath = replaceIfCurrentPath $conv_copyCustomConfigScriptPath
-    $conv_ledger_db_backup_path = replaceIfCurrentPath $conv_ledger_db_backup_path
-
-    printEnvironmentVariables
-
-    # check if azure context is initialized, if not, call add-azurermaccount
-    prepareAzureContext
-
-    if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
-        printUsage
-        return
-    }
-
-    $task = $task.ToLower().Trim()
-    foreach ($t in $TASKS) {
-        if ($t.name -eq $task) {
-            wh "[$($t.name)] USAGE: $($t.desc)"
-            wh
-            &$t.handler
-        }
-    }
-}
-
-# COMMON FUNCTIONS #
 
 ###################################################
 ### Read Name=Value config file into hash table
@@ -194,11 +51,170 @@ function readConfigFile($filePath)
 function getConfigFieldValue($config, $fieldName)
 {
     if (-not $config.ContainsKey($fieldName))
-    { Throw ("ERROR: " + $fieldName + " not set in config file.") }
+    { return "" }
 
     $value = $config[$fieldName]
     return $value
 }
+
+# global variables #
+$executionFolder = Split-Path $MyInvocation.MyCommand.Path
+
+#local working folder (in your development machine), if is current path, must be set to ".\"
+$local_workingFolder = "d:\conversion_auto\$LEDGER"
+
+#path to msbuild, use for auto build
+Set-Alias msbuild "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"
+Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
+
+# enums #
+$WINBEAT = "WINBEAT"
+$IBAIS = "IBAIS"
+
+# Obtains configs from configuration file #
+$conv_ledgerConfigFile = "ledger_configs.txt"
+$ledgerConfigurations = readConfigFile $conv_ledgerConfigFile
+
+$LEDGER = getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER"
+$SOURCE_SYSTEM = getConfigFieldValue $ledgerConfigurations "CONFIG_SYSTEM"
+$conv_ledgerName = $LEDGER
+
+#real path to ledger folder in conversion machine
+$conv_ledgerFolder = getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER_FOLDER"
+# if there's no config for ledger folder, set default as f:\[ledger name]
+if(!$conv_ledgerFolder)
+{
+    $conv_ledgerFolder = "F:\$conv_ledgerName"
+}
+else {
+    $conv_ledgerFolder = "F:\$conv_ledgerFolder"
+}
+ 
+#TEST PATH on local machine, only use for testing purpose at development time, comment out when run in conversion machine
+#$conv_ledgerFolder = $local_workingFolder
+
+#path to backup file, only use if the source system is winbeat
+#relative path to backup file, in raw data folder 
+$conv_ledger_db_backup_file_path =  getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER_DB_BACKUP_PATH"
+if ($conv_ledger_db_backup_file_path)
+{
+    $conv_ledger_db_backup_file_path = "$conv_ledgerFolder\Raw Data\$conv_ledger_db_backup_file_path"
+}
+
+#################################
+
+#path to your repo folders
+$local_conversionRootPath = "D:\sfg-repos\insight_data_conversion\boa-data-conversion"
+$local_sunriseAuditRootPath = "D:\sfg-repos\boa-sunrise-audit"
+$local_sunriseExportRootPath = "D:\sfg-repos\boa-sunrise-export"
+$local_svuAuditRootPath = "D:\sfg-repos\boa-svu-audit"
+
+#conversion machine paths
+$CONV_MACHINES = @(
+    @{name = "conv02"; ip = "13.77.2.124`:50201"; username = "namph.st76389@stfsazure.onmicrosoft.com"; password = ""}
+)
+
+$conv_appSourceFolder = $conv_ledgerFolder
+$conv_automationReportsFolder = "$conv_ledgerFolder\automation_reports"
+$conv_automationBackupFolder = $conv_ledgerFolder + "\automation_backups"
+$conv_defaultDatabaseBackupFolder = "$conv_automationBackupFolder\database"
+$conv_defaultSourceCodeBackupFolder = "$conv_automationBackupFolder\source code"
+$conv_changeCollationSqlScriptPath = "$conv_ledgerFolder\Change_Collation.sql"
+$conv_copyCustomConfigScriptPath = "$conv_ledgerFolder\Copy_Custom_Config.cmd"
+$conv_siteSpecificScriptsFolder = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\SiteSpecific\$conv_ledgerName"
+
+$conv_ledger_db = $conv_ledgerName
+$conv_ledger_insight_db = "$conv_ledgerName" + "Insight"
+
+$conv_preUploadReportsFolder = "$conv_ledgerFolder\Run1\PreUploadReports\Results"
+$conv_postConversionDataVerificationReportsForConsultantFolder = "$conv_ledgerFolder\Run1\PostConversionDataVerificationsReports\ForConsultant"
+$conv_recordCountReportsFolder = "$conv_ledgerFolder\Run1\Record Counts"
+
+$conv_sunriseAuditResultPath = "$conv_ledgerFolder\boa-sunrise-audit\Output"
+$conv_svuAuditResultPath = "$conv_ledgerFolder\boa-svu-audit\Output"
+
+#utility variables
+$color_info = 'green'
+$color_warning = 'yellow'
+$color_error = 'red'
+
+function printUsage() {
+    wh "Params:"
+    wh "-task"
+    foreach ($t in $TASKS) {
+        wh "`t$($t.name)"
+        wh "`t`t$($t.desc)" "cyan"
+    }
+}
+function printVariable($name, $value) {
+    wh
+    wh "`t`t`$$name`: " "cyan" 0
+    wh $value "magenta" 0
+}
+function printEnvironmentVariables() {
+    printVariable "LEDGER" $LEDGER
+    printVariable "SOURCE_SYSTEM" $SOURCE_SYSTEM
+    printVariable "conv_ledgerFolder" $conv_ledgerFolder
+    printVariable "conv_ledger_db_backup_file_path" $conv_ledger_db_backup_file_path
+    wh
+}
+
+$TASKS = @(
+    @{name = "step0-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
+    @{name = "step1-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
+    @{name = "step2-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
+    @{name = "step3-Zip"; handler = "archive"; desc = "Archive the conversion and related tools to $local_workingFolder"},
+    @{name = "step4-Extract"; handler = "extract"; desc = "Extract the conversion and related tools to $conv_ledgerFolder"},
+    @{name = "step5-Config"; handler = "config"; desc = "Read the CONFIG_ variables, then replace it from the custom config file placeholders"},
+    @{name = "step6-CheckConfig"; handler = "checkConfig"; desc = "Open custom config files to check ether your configurations are fucking right"},
+    @{name = "step7-ApplyConfig"; handler = "applyConfig"; desc = "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"},
+    @{name = "step8-RecheckConfig"; handler = "recheckConfig"; desc = "Open main config files and fucking re-check them by your fucking eyes"},
+    @{name = "step9-RestoreLedgerDb"; handler = "restoreLedgerDb"; desc = "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"},
+    @{name = "step10-ChangeCollation"; handler = "changeCollationLedgerDb"; desc = "Check if the $conv_ledger_db has the right collation, if it's not, open the change collation script in ssms then you need to run it by your fucking hands"},
+    @{name = "step11-CopyCreateInsightDbScript"; handler = "copyInsightCreationScript"; desc = "Copy Insight database creation script, this function basically copy out the path to script folder to clipboard. You need to open build machine then paste it to windows explorer to open the folder then copy the latest script by your fucking hands"},
+    @{name = "step12-CreateInsightDB"; handler = "createInsightDb"; desc = "Create $($conv_ledgerName + "Insight") database, if the db is already existed, backup it to $conv_automationBackupFolder"},
+    @{name = "step13-CheckPreconversionScripts"; handler = "checkPreConversionScripts"; desc = "Open $conv_siteSpecificScriptsFolder\Preconversion folder to see if there's any script need to run before the console app"},
+    @{name = "step14-CheckPostConversionScripts"; handler = "checkPostConversionScripts"; desc = "Open $conv_siteSpecificScriptsFolder\Postconversion folder to see if there's any script need to run after the console app"},
+    @{name = "step15-RunaAditTools"; handler = "runAuditTools"; desc = "Run SVU Audit tool, Sunrise export and Sunrise Audit tool"},
+    @{name = "step16-PrepareReports"; handler = "prepareReports"; desc = "Copy PreUpload, DataVerification, SVU Audit, Sunrise Audit and Record count (Data count checker) reports to automation_reports folder"},
+    @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
+    @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
+    @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
+    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"}
+    # @{name = "test"; handler = "test"; desc = "test"}
+)
+function main() {
+    $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
+    $conv_appSourceFolder = replaceIfCurrentPath $conv_appSourceFolder
+    $conv_automationBackupFolder = replaceIfCurrentPath $conv_automationBackupFolder
+    $conv_automationReportsFolder = replaceIfCurrentPath $conv_automationReportsFolder
+    $conv_defaultDatabaseBackupFolder = replaceIfCurrentPath $conv_defaultDatabaseBackupFolder
+    $conv_changeCollationSqlScriptPath = replaceIfCurrentPath $conv_changeCollationSqlScriptPath
+    $conv_copyCustomConfigScriptPath = replaceIfCurrentPath $conv_copyCustomConfigScriptPath
+    $conv_ledger_db_backup_file_path = replaceIfCurrentPath $conv_ledger_db_backup_file_path
+
+    printEnvironmentVariables
+
+    # check if azure context is initialized, if not, call add-azurermaccount
+    prepareAzureContext
+
+    if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
+        printUsage
+        return
+    }
+
+    $task = $task.ToLower().Trim()
+    foreach ($t in $TASKS) {
+        if ($t.name -eq $task) {
+            wh "[$($t.name)] USAGE: $($t.desc)"
+            wh
+            &$t.handler
+        }
+    }
+}
+
+# COMMON FUNCTIONS #
+
 
 function prepareAzureContext() {
     $azureContext = Get-AzureRmContext
@@ -660,12 +676,12 @@ function setConfigs($appConfigFilePath, $configHashArray) {
     $appConfig.Save($appConfigFilePath)
 }
 function config() {
-    if (!(Test-Path -Path $conv_credentialsConfigFile))
+    if (!(Test-Path -Path $conv_ledgerConfigFile))
     {
-        wh "$conv_credentialsConfigFile did not exist" $color_error
+        wh "$conv_ledgerConfigFile did not exist" $color_error
         return
     }
-    $credentialConfigs = readConfigFile $conv_credentialsConfigFile
+    $credentialConfigs = readConfigFile $conv_ledgerConfigFile
 
     $azureBlobStorageAccountName = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_BLOB_STORAGE_ACCOUNT"
     $azureBlobStorageAccountKey = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_BLOB_STORAGE_KEY"
@@ -747,7 +763,7 @@ function recheckConfig() {
 }
 
 #backup and restore ledger database
-#firstly, check whether ledger database is existing, if it is, back it up into $conv_ledger_db_backup_path folder
+#firstly, check whether ledger database is existing, if it is, back it up into $conv_ledger_db_backup_file_path folder
 #next, restore ledger database to conversion machine with name the same as ledger's name
 #for example, if ledger is Melbourne, now restore to database Melbourne
 function restoreDb($backupFile, $dbName) {
@@ -787,23 +803,23 @@ function restoreLedgerDb() {
     }
 }
 function restoreLedgerDbWinbeat() {
-    if (!(Test-Path -Path $conv_ledger_db_backup_path)) {
-        wh "$conv_ledger_db_backup_path not found"
+    if (!(Test-Path -Path $conv_ledger_db_backup_file_path)) {
+        wh "$conv_ledger_db_backup_file_path not found"
         exit
     }
-    wh "Restore $conv_ledger_db_backup_path into $conv_ledger_db  database"
+    wh "Restore $conv_ledger_db_backup_file_path into $conv_ledger_db  database"
     Write-Host
     wh "Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
     Write-Host
     $confirm = (Read-Host).Trim()
     if ($confirm -eq "y") {
         backupDb $conv_ledger_db $conv_defaultDatabaseBackupFolder
-        restoreDb $conv_ledger_db_backup_path $conv_ledger_db
+        restoreDb $conv_ledger_db_backup_file_path $conv_ledger_db
     }
 }
 
 function restoreLedgerDbIbais() {
-    wh "Restore $conv_ledger_db_backup_path into $conv_ledger_db  database"
+    wh "Restore $conv_ledger_db_backup_file_path into $conv_ledger_db  database"
     Write-Host
     wh "Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
     Write-Host
@@ -852,6 +868,9 @@ function changeCollationLedgerDb() {
             else {
                 ssms.exe  $conv_changeCollationSqlScriptPath -d $conv_ledger_db -E -S '.'
             }
+        }
+        else {
+            wh "Collation is good, don't need to change."
         }
     }
 }
