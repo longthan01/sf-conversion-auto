@@ -57,12 +57,6 @@ function getConfigFieldValue($config, $fieldName)
     return $value
 }
 
-# global variables #
-$executionFolder = Split-Path $MyInvocation.MyCommand.Path
-
-#local working folder (in your development machine), if is current path, must be set to ".\"
-$local_workingFolder = "d:\conversion_auto\$LEDGER"
-
 #path to msbuild, use for auto build
 Set-Alias msbuild "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"
 Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
@@ -77,6 +71,10 @@ $ledgerConfigurations = readConfigFile $conv_ledgerConfigFile
 
 $LEDGER = getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER"
 $SOURCE_SYSTEM = getConfigFieldValue $ledgerConfigurations "CONFIG_SYSTEM"
+if($SOURCE_SYSTEM)
+{
+    $SOURCE_SYSTEM = $SOURCE_SYSTEM.ToUpper()
+}
 $conv_ledgerName = $LEDGER
 
 #real path to ledger folder in conversion machine
@@ -91,15 +89,17 @@ else {
 }
  
 #TEST PATH on local machine, only use for testing purpose at development time, comment out when run in conversion machine
-#$conv_ledgerFolder = $local_workingFolder
+$conv_ledgerFolder = "D:\conversion_auto\$LEDGER"
+
+# global variables #
+$executionFolder = Split-Path $MyInvocation.MyCommand.Path
+#local working folder (in your development machine), if is current path, must be set to ".\"
+$local_workingFolder = "d:\conversion_auto\$LEDGER"
 
 #path to backup file, only use if the source system is winbeat
 #relative path to backup file, in raw data folder 
 $conv_ledger_db_backup_file_path =  getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER_DB_BACKUP_PATH"
-if ($conv_ledger_db_backup_file_path)
-{
-    $conv_ledger_db_backup_file_path = "$conv_ledgerFolder\Raw Data\$conv_ledger_db_backup_file_path"
-}
+$conv_ledger_db_backup_file_path = "$conv_ledgerFolder\Raw Data\$conv_ledger_db_backup_file_path"
 
 #################################
 
@@ -528,7 +528,7 @@ function backupOldSourceCode() {
         }
     }
    
-    wh "Do you fucking want to backup old source codes? [y/n], choose yes if you want to use the new source code, or no if you don't, default is [n]"
+    wh "Do you fucking want to backup old source codes? [y/n], choose yes if you want to use the new source code, or no if you don't, default is [n]" $color_warning
     $confirm = (Read-Host).Trim()
     if ($confirm -eq "y") {
         
@@ -626,8 +626,8 @@ function extract() {
         }
     }
     
-    if (!(Test-Path -Path $templateFiles)) {
-        wh "$templateFiles not found" $color_warning
+    if (!($templateFiles) -or !(Test-Path -Path $templateFiles)) {
+        wh "Template files: $templateFiles not found" $color_warning
         return 
     }
     $currentConfigFolders = (Get-ChildItem -Path "$conv_ledgerFolder\*.Config" | Measure-Object).Count
@@ -699,6 +699,7 @@ function config() {
             @{key = "[AZURE_BLOB_STORAGE_KEY]"; value = $azureBlobStorageAccountKey},
             @{key = "[LEDGER_NAME]"; value = $conv_ledgerName},
             @{key = "[LEDGER_FOLDER]"; value = $conv_ledgerFolder},
+            @{key = "[LEDGER_RAW_DATA]"; value = $conv_ledger_db_backup_file_path},
             @{key = "[AUDIT_LISTING_FILE]"; value = $auditListingFileName},
             @{key = "[CONV_LEDGER_INSIGHT_DB]"; value = $conv_ledger_insight_db},
             @{key = "[CONV_LEDGER_DB]"; value = $conv_ledger_db},
