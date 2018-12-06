@@ -84,12 +84,9 @@ if(!$conv_ledgerFolder)
 {
     $conv_ledgerFolder = "F:\$conv_ledgerName"
 }
-else {
-    $conv_ledgerFolder = "F:\$conv_ledgerFolder"
-}
  
 #TEST PATH on local machine, only use for testing purpose at development time, comment out when run in conversion machine
-$conv_ledgerFolder = "D:\conversion_auto\$LEDGER"
+#$conv_ledgerFolder = "D:\conversion_auto\$LEDGER"
 
 # global variables #
 $executionFolder = Split-Path $MyInvocation.MyCommand.Path
@@ -196,7 +193,7 @@ function main() {
     printEnvironmentVariables
 
     # check if azure context is initialized, if not, call add-azurermaccount
-    prepareAzureContext
+    #prepareAzureContext
 
     if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
         printUsage
@@ -528,7 +525,7 @@ function backupOldSourceCode() {
         }
     }
    
-    wh "Do you fucking want to backup old source codes? [y/n], choose yes if you want to use the new source code, or no if you don't, default is [n]" $color_warning
+    wh "Do you fucking want to backup old source codes? [y/n], choose yes if you want to use the new source code, or no if YOU WANT TO RE-USE THE CURRENT SOURCE CODES, default is [n]" $color_warning
     $confirm = (Read-Host).Trim()
     if ($confirm -eq "y") {
         
@@ -551,7 +548,7 @@ function backupOldSourceCode() {
        
     wh
     wh "Do you fucking want to backup CONFIGURATION FOLDERS? [y/n], choose [y] if you want to overrite the old ones" $color_warning
-    wh "or [n] if you want to re-use? default is [n]" $color_warning
+    wh "or [n] if YOU WANT TO RE-USE? default is [n]" $color_warning
     $backupConfigurationConfirm = Read-Host
     if ($backupConfigurationConfirm -eq "y") {
         #backup old configuration folders
@@ -810,22 +807,15 @@ function restoreLedgerDbWinbeat() {
     }
     wh "Restore $conv_ledger_db_backup_file_path into $conv_ledger_db  database"
     Write-Host
-    wh "Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
-    Write-Host
-    $confirm = (Read-Host).Trim()
-    if ($confirm -eq "y") {
+    
         backupDb $conv_ledger_db $conv_defaultDatabaseBackupFolder
         restoreDb $conv_ledger_db_backup_file_path $conv_ledger_db
-    }
 }
 
 function restoreLedgerDbIbais() {
     wh "Restore $conv_ledger_db_backup_file_path into $conv_ledger_db  database"
     Write-Host
-    wh "Restore process is starting now, DO YOU FUCKING SURE? [y/n], default is [n]" $color_warning 0 
-    Write-Host
-    $confirm = (Read-Host).Trim()
-    if ($confirm -eq "y") {
+    
         backupDb $conv_ledger_db $conv_defaultDatabaseBackupFolder
 
         #delete the old one
@@ -839,7 +829,6 @@ function restoreLedgerDbIbais() {
 "@
             Invoke-Sqlcmd -ServerInstance '.' -Query $delQuery
         }
-    }
     #create the new one
     if (!(checkDbExist $conv_ledger_db)) {
         wh "Creating $conv_ledger_db"
