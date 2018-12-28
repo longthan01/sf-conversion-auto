@@ -6,11 +6,9 @@ Param(
 ###################################################
 ### Read Name=Value config file into hash table
 ###################################################
-function readConfigFile($filePath)
-{
+function readConfigFile($filePath) {
     $found = Test-Path($filePath)
-    if ($found -eq $false)
-    {
+    if ($found -eq $false) {
         $msg = "ERROR: Configuration file ", $filePath, " not found"
         Write-Host $msg
         Throw $msg
@@ -20,8 +18,7 @@ function readConfigFile($filePath)
 
     $lines = Get-Content $filePath
 
-    foreach ($line in $lines)
-    {
+    foreach ($line in $lines) {
         if ($line.length -eq 0)
         { continue }
         
@@ -32,12 +29,10 @@ function readConfigFile($filePath)
         $nv[0] = $nv[0].Trim()
         $nv[1] = $nv[1].Trim()
         
-        if ($nvp.ContainsKey($nv[0]))
-        {
+        if ($nvp.ContainsKey($nv[0])) {
             $nvp.set_item($nv[0], $nv[1])
         }
-        else
-        {
+        else {
             $nvp.add($nv[0], $nv[1])
         }
     }
@@ -48,8 +43,7 @@ function readConfigFile($filePath)
 ###################################################
 # Retrieves a config field value and checks it
 ###################################################
-function getConfigFieldValue($config, $fieldName)
-{
+function getConfigFieldValue($config, $fieldName) {
     if (-not $config.ContainsKey($fieldName))
     { return "" }
 
@@ -71,8 +65,7 @@ $ledgerConfigurations = readConfigFile $conv_ledgerConfigFile
 
 $LEDGER = getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER"
 $SOURCE_SYSTEM = getConfigFieldValue $ledgerConfigurations "CONFIG_SYSTEM"
-if($SOURCE_SYSTEM)
-{
+if ($SOURCE_SYSTEM) {
     $SOURCE_SYSTEM = $SOURCE_SYSTEM.ToUpper()
 }
 $conv_ledgerName = $LEDGER
@@ -80,8 +73,7 @@ $conv_ledgerName = $LEDGER
 #real path to ledger folder in conversion machine
 $conv_ledgerFolder = getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER_FOLDER"
 # if there's no config for ledger folder, set default as f:\[ledger name]
-if(!$conv_ledgerFolder)
-{
+if (!$conv_ledgerFolder) {
     $conv_ledgerFolder = "F:\$conv_ledgerName"
 }
  
@@ -95,7 +87,7 @@ $local_workingFolder = "d:\conversion_auto\$LEDGER"
 
 #path to backup file, only use if the source system is winbeat
 #relative path to backup file, in raw data folder 
-$conv_ledger_db_backup_file_path =  getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER_DB_BACKUP_PATH"
+$conv_ledger_db_backup_file_path = getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER_DB_BACKUP_PATH"
 $conv_ledger_db_backup_file_path = "$conv_ledgerFolder\Raw Data\$conv_ledger_db_backup_file_path"
 
 #################################
@@ -178,6 +170,7 @@ $TASKS = @(
     @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
     @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
     @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"}
+    @{name = "util-prepareForRerun"; handler = "prepareForRerun"; desc = "(conv) Rerun conversion in case of the previous failed, this function will do: 1.Rename run1 2.Delete and restore source database 3.Delete and create destination database"}
     # @{name = "test"; handler = "test"; desc = "test"}
 )
 function main() {
@@ -240,7 +233,7 @@ function zipFile ($sourcePath, $destinationPath) {
         Write-Host
         wh "'$destinationPath' folder is existing, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 1
         Write-Host
-        $confirm = (Read-Host).Trim()
+        $confirm = (Read-Host).Trim().ToLower()
         if ($confirm -eq "y") {
             Remove-Item -Path $destinationPath -Force -Recurse
         }
@@ -493,6 +486,9 @@ function prepareConvEnvironment() {
 
     #backup old source code if this is the n run (n > 1)
     backupOldSourceCode
+    backupRun1
+}
+function backupRun1() {
     #backup Run1 if this is the n run (n > 1)
     $run1 = "$conv_ledgerFolder\Run1"
     if (Test-Path -Path $run1) {
@@ -594,6 +590,25 @@ function archive() {
     zipFile $local_sunriseAuditRootPath'\bin\debug\*' $local_workingFolder'\boa-sunrise-audit.zip'
     zipFile $local_sunriseExportRootPath'\bin\debug\*' $local_workingFolder'\boa-sunrise-export.zip'
     zipFile $local_svuAuditRootPath'\bin\debug\*' $local_workingFolder'\boa-svu-audit.zip'
+
+    $templateFiles = ""
+    if ($SOURCE_SYSTEM -eq $WINBEAT) {
+        $templateFiles = "$executionFolder\appconfig_template_winbeat.zip"
+    }
+    else {
+        if ($SOURCE_SYSTEM -eq $IBAIS) {
+            $templateFiles = "$executionFolder\appconfig_template_ibais.zip"
+        }
+    }
+    wh $templateFiles
+    if (!($templateFiles) -or !(Test-Path -Path $templateFiles)) {
+        wh "There's no configuration template files in $executionFolder" $color_warning
+        return 
+    }
+    else {
+        wh "Copying $templateFiles into $local_workingFolder" 
+        Copy-Item -Path $templateFiles -Destination "$local_workingFolder" -Force
+    }
 }
 
 #extract conversion console app and related tools, this step should be ran in development machine
@@ -629,7 +644,7 @@ function extract() {
     }
     $currentConfigFolders = (Get-ChildItem -Path "$conv_ledgerFolder\*.Config" | Measure-Object).Count
     if ($currentConfigFolders -ne 0) {
-        wh "Configuration folders are existed, check and extract by your fucking hands, the tool does not support extract programmatically."
+        wh "Configuration folders are existed, check and extract by your fucking hands, the tool does not support extract programmatically." $color_warning
         return
     }
     wh "Extracting file $templateFiles into $conv_ledgerFolder"
@@ -673,8 +688,7 @@ function setConfigs($appConfigFilePath, $configHashArray) {
     $appConfig.Save($appConfigFilePath)
 }
 function config() {
-    if (!(Test-Path -Path $conv_ledgerConfigFile))
-    {
+    if (!(Test-Path -Path $conv_ledgerConfigFile)) {
         wh "$conv_ledgerConfigFile did not exist" $color_error
         return
     }
@@ -684,7 +698,7 @@ function config() {
     $azureBlobStorageAccountKey = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_BLOB_STORAGE_KEY"
     $auditListingFileName = getConfigFieldValue $credentialConfigs "CONFIG_AUDIT_LISTING_FILE"
     $azureInsightDatabase = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_INSIGHT_DB"
-    $azureInsightDatabaseUserSuffix = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_INSIGHT_DB_USER_SUFFIX"
+    $azureInsightDatabaseUser = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_INSIGHT_DB_USER"
     $azureInsightDatabasePassword = getConfigFieldValue $credentialConfigs "CONFIG_AZURE_INSIGHT_DB_PASSWORD"
 
     wh "We will config app and connection string settings for a bunch of apps" $color_warning
@@ -701,7 +715,7 @@ function config() {
             @{key = "[CONV_LEDGER_INSIGHT_DB]"; value = $conv_ledger_insight_db},
             @{key = "[CONV_LEDGER_DB]"; value = $conv_ledger_db},
             @{key = "[AZURE_INSIGHT_DB]"; value = $azureInsightDatabase},
-            @{key = "[AZURE_INSIGHT_DB_USER_SUFFIX]"; value = $azureInsightDatabaseUserSuffix},
+            @{key = "[AZURE_INSIGHT_DB_USER]"; value = $azureInsightDatabaseUser},
             @{key = "[AZURE_INSIGHT_DB_PASSWORD]"; value = $azureInsightDatabasePassword}
         )
         Set-Location $conv_ledgerFolder
@@ -791,16 +805,24 @@ function restoreDb($backupFile, $dbName) {
 
 #this step is to restore ledger into conversion machine
 function restoreLedgerDb() {
+    wh "Do you want to backup db first? [y/n], default is y" $color_warning
+    $confirm = (Read-Host).Trim().ToLower()
+    $backup = $true    
+    if ($confirm -eq "n") {
+        $backup = $false
+    }
+
     if ($SOURCE_SYSTEM -eq $WINBEAT) {
-        restoreLedgerDbWinbeat
+        restoreLedgerDbWinbeat $backup
     }
     else {
         if ($SOURCE_SYSTEM -eq $IBAIS) {
-            restoreLedgerDbIbais
+            restoreLedgerDbIbais $backup
         }
     }
 }
-function restoreLedgerDbWinbeat() {
+function restoreLedgerDbWinbeat($backup) {
+
     if (!(Test-Path -Path $conv_ledger_db_backup_file_path)) {
         wh "$conv_ledger_db_backup_file_path not found"
         exit
@@ -808,27 +830,30 @@ function restoreLedgerDbWinbeat() {
     wh "Restore $conv_ledger_db_backup_file_path into $conv_ledger_db  database"
     Write-Host
     
+    if ($backup) {
         backupDb $conv_ledger_db $conv_defaultDatabaseBackupFolder
-        restoreDb $conv_ledger_db_backup_file_path $conv_ledger_db
+    }
+    restoreDb $conv_ledger_db_backup_file_path $conv_ledger_db
 }
 
-function restoreLedgerDbIbais() {
+function restoreLedgerDbIbais($backup) {
     wh "Restore $conv_ledger_db_backup_file_path into $conv_ledger_db  database"
     Write-Host
-    
+    if ($backup) {
         backupDb $conv_ledger_db $conv_defaultDatabaseBackupFolder
+    }
 
-        #delete the old one
-        if ((checkDbExist $conv_ledger_db)) {
-            wh "Deleting $conv_ledger_db"
-            $delQuery = @"
+    #delete the old one
+    if ((checkDbExist $conv_ledger_db)) {
+        wh "Deleting $conv_ledger_db"
+        $delQuery = @"
         USE MASTER 
         ALTER DATABASE [$conv_ledger_db] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
         GO 
         DROP DATABASE $conv_ledger_db
 "@
-            Invoke-Sqlcmd -ServerInstance '.' -Query $delQuery
-        }
+        Invoke-Sqlcmd -ServerInstance '.' -Query $delQuery
+    }
     #create the new one
     if (!(checkDbExist $conv_ledger_db)) {
         wh "Creating $conv_ledger_db"
@@ -1323,6 +1348,21 @@ function openDatabaseInSSMS() {
         Set-Clipboard $ssmsCommand
         wh "$ssmsCommand is copied to clipboard"
         Invoke-Expression $ssmsCommand
+    }
+}
+
+function prepareForRerun() {
+    Write-Host
+    wh "SURE?" $color_warning 1
+    Write-Host
+    $confirm = (Read-Host).Trim().ToLower()
+    if ($confirm -eq "y") {
+        wh "Backing up run1"   
+        backupRun1
+        wh "Delete and restoring source db"
+        restoreLedgerDb
+        changeCollationLedgerDb
+        createInsightDb
     }
 }
 
