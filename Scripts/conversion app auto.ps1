@@ -169,9 +169,9 @@ $TASKS = @(
     @{name = "rs-BackupBlobsFolder"; handler = "backupBlobsFolder"; desc = "Check whether blobs folder is existing, if it is, rename it to Source data from setup_[current date time]"},
     @{name = "util-OpenAzureDatabase"; handler = "openAzureDb"; desc = "(conv) Open azure database in ssms"},
     @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
-    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"}
-    @{name = "util-prepareForRerun"; handler = "prepareForRerun"; desc = "(conv) Rerun conversion in case of the previous failed, this function will do: 1.Rename run1 2.Delete and restore source database 3.Delete and create destination database"}
-    # @{name = "test"; handler = "test"; desc = "test"}
+    @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"},
+    @{name = "util-prepareForRerun"; handler = "prepareForRerun"; desc = "(conv) Rerun conversion in case of the previous failed, this function will do: 1.Rename run1 2.Delete and restore source database 3.Delete and create destination database"},
+    @{name = "test"; handler = "test1"; desc = "test"}
 )
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -805,11 +805,11 @@ function restoreDb($backupFile, $dbName) {
 
 #this step is to restore ledger into conversion machine
 function restoreLedgerDb() {
-    wh "Do you want to backup db first? [y/n], default is y" $color_warning
+    wh "Do you want to backup db first? [y/n], default is n" $color_warning
     $confirm = (Read-Host).Trim().ToLower()
-    $backup = $true    
-    if ($confirm -eq "n") {
-        $backup = $false
+    $backup = $false    
+    if ($confirm -eq "y") {
+        $backup = $true
     }
 
     if ($SOURCE_SYSTEM -eq $WINBEAT) {
@@ -1375,4 +1375,11 @@ function test() {
     wh "$($conv02.ip)"
     doWorkRemotely "f:\" "$($conv02.ip)" "$($conv02.username)" "$($conv02.password)" "distributeAutomationScript"
 }
+
+function test1()
+{
+    Set-Location "$conv_ledgerFolder\DatabaseConversion.ConsoleApp"
+    start "DatabaseConversion.ConsoleApp.exe"
+}
+
 main
