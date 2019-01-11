@@ -83,7 +83,7 @@ if (!$conv_ledgerFolder) {
 # global variables #
 $executionFolder = Split-Path $MyInvocation.MyCommand.Path
 #local working folder (in your development machine), if is current path, must be set to ".\"
-$local_workingFolder = "d:\conversion_auto\$LEDGER"
+$local_workingFolder = $executionFolder
 
 #path to backup file, only use if the source system is winbeat
 #relative path to backup file, in raw data folder 
@@ -277,6 +277,11 @@ function getSqlDefaultPath($type) {
     return $result
 }
 function pullCodeFromUpstream($sourceDir) {
+    if(!Test-Path -path $sourceDir)
+    {
+        wh "FOLDER $sourceDir DID NOT EXISTS" $color_error
+        return
+    }
     Set-Location -Path $sourceDir
     wh "Pulling latest code into $sourceDir"
     git checkout master
@@ -311,12 +316,13 @@ function getBuildProjects($solutionRootDir, [string[]]$excludedProjects = @()) {
     return $includeProjects.Substring(0, $includeProjects.Length - 1)
 }
 function buildSolution($solutionPath, $buildMode, [string[]]$excludeProjects = @()) {	
-    $compilingProjects = getBuildProjects $(Split-Path -Path $solutionPath) $excludeProjects
-    wh "`tBuilding $compilingProjects of $solutionPath"
     if (!(Test-Path -Path $solutionPath)) {
-        wh "Solution file not found" $color_error
+        wh "Solution $solutionPath not found" $color_error
         return
     }
+    
+    $compilingProjects = getBuildProjects $(Split-Path -Path $solutionPath) $excludeProjects
+    wh "`tBuilding $compilingProjects of $solutionPath"
 
     if ($buildMode -eq $()) {
         $buildMode = "Release"
@@ -455,13 +461,13 @@ function checkDbExist($dbName) {
     wh "$dbName exsited"
     return $true
 }
-function doWorkRemotely($remoteWorkingPath, $serverName, $userName, $password, $callback) {
+function doWorkRemotely($remoteWorkingFolder, $serverName, $userName, $password, $callback) {
     $psDriveName = ""
     $psDriveCode = 90 #start from Z
     for ($i = $psDriveCode; $i -ge 65; $i--) {
         $byte = @($i)
         $psDriveName = [System.Text.Encoding]::ASCII.GetString($byte)
-        $serializedRemotePath = $remoteWorkingPath.Replace(":", "$")
+        $serializedRemotePath = $remoteWorkingFolder.Replace(":", "$")
         if (!(Test-Path -Path "$psDriveName`:")) {
             $pwd = ConvertTo-SecureString -String "$password" -AsPlainText -Force
             $cred = New-Object System.Management.Automation.PsCredential("$userName", $pwd)
@@ -653,6 +659,7 @@ function extract() {
 
 #config for each *.config file for a fucking bunch of projects
 function setConfigs($appConfigFilePath, $configHashArray) {
+    wh $appConfigFilePath "white"
     $appConfig = New-Object Xml
     $appConfig.Load($appConfigFilePath)
     $appSettings = $appConfig.GetElementsByTagName("appSettings")
@@ -720,6 +727,11 @@ function config() {
         )
         Set-Location $conv_ledgerFolder
         $configFiles = @((Get-ChildItem -Path '*.Config' -Include "*.config").FullName)
+        if($($configFiles).Count -eq 0)
+        {
+            wh "There's no config files in folder $conv_ledgerFolder" $color_error
+            return;
+        }
         Set-Location $executionFolder
         foreach ($f in $configFiles) {
             wh "Configuring app settings for $f"
