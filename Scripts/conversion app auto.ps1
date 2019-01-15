@@ -63,6 +63,7 @@ $IBAIS = "IBAIS"
 $conv_ledgerConfigFile = "ledger_configs.txt"
 $ledgerConfigurations = readConfigFile $conv_ledgerConfigFile
 
+
 $LEDGER = getConfigFieldValue $ledgerConfigurations "CONFIG_LEDGER"
 $SOURCE_SYSTEM = getConfigFieldValue $ledgerConfigurations "CONFIG_SYSTEM"
 if ($SOURCE_SYSTEM) {
@@ -93,10 +94,10 @@ $conv_ledger_db_backup_file_path = "$conv_ledgerFolder\Raw Data\$conv_ledger_db_
 #################################
 
 #path to your repo folders
-$local_conversionRootPath = "D:\sfg-repos\insight_data_conversion\boa-data-conversion"
-$local_sunriseAuditRootPath = "D:\sfg-repos\boa-sunrise-audit"
-$local_sunriseExportRootPath = "D:\sfg-repos\boa-sunrise-export"
-$local_svuAuditRootPath = "D:\sfg-repos\boa-svu-audit"
+$local_conversionRootPath = "F:\Steadfast\Migration\boa-data-conversion"
+$local_sunriseAuditRootPath = "F:\Steadfast\Migration\boa-sunrise-audit"
+$local_sunriseExportRootPath = "F:\Steadfast\Migration\boa-sunrise-export"
+$local_svuAuditRootPath = "F:\Steadfast\Migration\boa-svu-audit"
 
 #conversion machine paths
 $CONV_MACHINES = @(
@@ -172,6 +173,7 @@ $TASKS = @(
     @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"},
     @{name = "util-prepareForRerun"; handler = "prepareForRerun"; desc = "(conv) Rerun conversion in case of the previous failed, this function will do: 1.Rename run1 2.Delete and restore source database 3.Delete and create destination database"},
     @{name = "util-collectLogsAfterRun"; handler = "collectLogs"; desc = "(conv) Collect log files after run conversion for fucking checking purpose"}
+
 )
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
