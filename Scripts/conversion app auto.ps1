@@ -100,7 +100,7 @@ $local_svuAuditRootPath = "D:\sfg-repos\boa-svu-audit"
 
 #conversion machine paths
 $CONV_MACHINES = @(
-    @{name = "conv02"; ip = "13.77.2.124`:50201"; username = "namph.st76389@stfsazure.onmicrosoft.com"; password = ""}
+    @{name = "conv03"; ip = "13.77.2.124:50301"; username = "namph.st76389@stfsazure.onmicrosoft.com"; password = ""}
 )
 
 $conv_appSourceFolder = $conv_ledgerFolder
@@ -171,7 +171,7 @@ $TASKS = @(
     @{name = "util-searchLedgerInRc"; handler = "searchLedgerInRc"; desc = "(conv) Search ledger info in rc environment"},
     @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"},
     @{name = "util-prepareForRerun"; handler = "prepareForRerun"; desc = "(conv) Rerun conversion in case of the previous failed, this function will do: 1.Rename run1 2.Delete and restore source database 3.Delete and create destination database"},
-    @{name = "test"; handler = "test1"; desc = "test"}
+    @{name = "util-collectLogsAfterRun"; handler = "collectLogs"; desc = "(conv) Collect log files after run conversion for fucking checking purpose"}
 )
 function main() {
     $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
@@ -1378,20 +1378,55 @@ function prepareForRerun() {
     }
 }
 
+function collectLogs()
+{
+    $automationLogsFolder = "automation_logs\" + $(now)
+    createFolderIfNotExists "$automationLogsFolder"
+    $run1Log = "Run1"
+    $consoleAppLog = "DatabaseConversion.ConsoleApp\Logs"
+    $azureImportBlobLog = "DatabaseConversion.AzureImportBlob\Logs"
+    collectLog $run1Log $automationLogsFolder
+    collectLog $consoleAppLog $automationLogsFolder $true "consoleapp.log"
+    collectLog $azureImportBlobLog $automationLogsFolder $true  "azureimportblob.log"
+}
+function collectLog($sourceFolder, $destinationFolder, $only1LatestFile, $destinationFileName)
+{
+    if (!(Test-Path -Path $sourceFolder))
+    {
+        wh "$sourceFolder did not exist" $color_error
+        return
+    }
+    $logFiles = @((Get-ChildItem -Path "$sourceFolder" -Filter "*.log" | Sort-Object LastWriteTime -Descending).FullName)
+    if($logFiles.Count -eq 0)
+    {
+        wh "There is no log files in $sourceFolder" $color_warning
+    } else {
+        if (!$only1LatestFile)
+        {
+            wh "Coping log files from $sourceFolder to $destinationFolder"
+            foreach ($f in $logFiles) {
+                Copy-Item -Path "$f" -Destination "$destinationFolder"
+            }
+        }
+        else {
+            if($destinationFileName)
+            {
+                Copy-Item -Path "$($logFiles[0])" -Destination "$destinationFolder\$destinationFileName"
+            }
+            else {
+                Copy-Item -Path "$($logFiles[0])" -Destination "$destinationFolder"
+            }
+        }
+    }
+}
 function distributeAutomationScript($psNetworkDrive) {
-    Copy-Item -Path ".\conversion app auto.ps1" -Destination "$psNetworkDrive`:\"
+    Copy-Item -Path "$psNetworkDrive`:\osman\db_bak.txt" -Destination ".\osman_db_bak.txt"
 }
 
 function test() {
-    $conv02 = ($CONV_MACHINES |? {$_.name -eq "conv02"})
-    wh "$($conv02.ip)"
-    doWorkRemotely "f:\" "$($conv02.ip)" "$($conv02.username)" "$($conv02.password)" "distributeAutomationScript"
-}
-
-function test1()
-{
-    Set-Location "$conv_ledgerFolder\DatabaseConversion.ConsoleApp"
-    start "DatabaseConversion.ConsoleApp.exe"
+    $conv03 = ($CONV_MACHINES | Where-Object {$_.name -eq "conv03"})
+    wh "$($conv03.ip)"
+    doWorkRemotely "f:" "$($conv03.ip)" "$($conv03.username)" "$($conv03.password)" "distributeAutomationScript"
 }
 
 main
