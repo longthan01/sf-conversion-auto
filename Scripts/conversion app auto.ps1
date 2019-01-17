@@ -1103,6 +1103,7 @@ function runProgramOnlyIfAProcessIsExited($sourceProgram, $otherProcessName)
         wh "$sourceProgram does not exist" $color_error
         return
     }
+    wh "Awaiting $otherProcessName exit to run $sourceProgram"
     $sourceProgramDir = Split-Path $sourceProgram
     Set-Location $sourceProgramDir
     $otherProcessIsExited = $false
