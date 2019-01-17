@@ -356,7 +356,7 @@ function buildSolutions() {
 function getConfigValue($appconfigFilePath, $xpath, $attribute) {
     if (!(Test-Path -Path $appConfigFilePath)) {
         wh "$appConfigFilePath not found" $color_error
-        return
+        return $null
     }
     $appConfig = New-Object Xml
     $appConfig.Load($appConfigFilePath)
@@ -1029,14 +1029,8 @@ function runSunriseExport() {
         }
     }
     
-    $sunriseExportToolFolder = "$conv_ledgerFolder\boa-sunrise-export"
-    Set-Location $sunriseExportToolFolder
-    $sunriseExportTool = "$sunriseExportToolFolder\SunriseExport.exe"
-    if (!(Test-Path -Path $sunriseExportTool)) {
-        wh "Sunrise export tool does not exist" $color_error
-        return
-    }
-    start "$sunriseExportTool"
+    $sunriseExportTool = "$conv_ledgerFolder\boa-sunrise-export\SunriseExport.exe"
+    runProgramOnlyIfAProcessIsExited $sunriseExportTool "boa-svu-audit"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
@@ -1083,37 +1077,54 @@ function checkPostConversionScripts() {
 #wait a few seconds for each run
 function runAuditTools() {
     $azureInsightDbConnString = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomConnectionStrings.config" 'connectionStrings/add[@name="DestinationDatabase"]' "connectionString"
-    $svuAuditToolFoler = "$conv_ledgerFolder\boa-svu-audit"
-    Set-Location -Path $svuAuditToolFoler
-    start "$svuAuditToolFoler\SvuAudit.exe"
+    runProgramOnlyIfAProcessIsExited "$conv_ledgerFolder\boa-svu-audit\SvuAudit.exe"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 500
     Set-Location -Path $executionFolder
     $listingFile = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomAppSettings.config" 'appSettings/add[@key="SvuCSVFilePath"]' "value"
-    if (!(Test-Path -Path $listingFile)) {
-        wh "$listingFile does not existed" $color_warning
+    if (!$listingFile -Or !(Test-Path -Path $listingFile)) {
+        wh "Listing file $listingFile does not existed" $color_warning
     }
     auditAutomationTool -procName "SvuAudit" -controlId txtOpportunityFile -controlValue $listingFile
     auditAutomationTool -procName "SvuAudit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
-    countDown 60 "Wait 60s to run Sunrise export"
-
     runSunriseExport
-    countDown 120 "Wait 120s to run Sunrise audit"
-
-    $sunriseAuditToolFolder = "$conv_ledgerFolder\boa-sunrise-audit"
-    Set-Location $sunriseAuditToolFolder
-    $sunriseAuditTool = "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
-    if (!(Test-Path -Path $sunriseAuditTool)) {
-        wh "Sunrise audit tool does not exist" $color_error
-        return
-    }
-    start $sunriseAuditTool
+    $sunriseAuditTool = "$conv_ledgerFolder\boa-sunrise-audit\boa-sunrise-audit.exe"
+    runProgramOnlyIfAProcessIsExited $sunriseAuditTool "boa-sunrise-export"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
     $outputFileFromSunriseExport = Get-ChildItem "$conv_ledgerFolder\boa-sunrise-export\Output" | Sort {$_.LastWriteTime} | select -last 1
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtPolicyFile -controlValue "$($outputFileFromSunriseExport.FullName)" 
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
+}
+function runProgramOnlyIfAProcessIsExited($sourceProgram, $otherProcessName)
+{
+    if (!(Test-Path -Path $sourceProgram)) {
+        wh "$sourceProgram does not exist" $color_error
+        return
+    }
+    $sourceProgramDir = Split-Path $sourceProgram
+    Set-Location $sourceProgramDir
+    $otherProcessIsExited = $false
+    if (!$otherProcessName)
+    {
+        $otherProcessIsExited = $true
+    }
+    while (!$otherProcessIsExited)
+    {
+        $otherProcess = Get-Process $otherProcessName -ErrorAction SilentlyContinue
+        if (!$otherProcess)
+        {
+            #wait 1s if other process still running
+            Start-Sleep 1000 
+        }
+        else {
+            #other process exited, turn off the flag
+            $otherProcessIsExited = $true
+        }
+    }
+    wh "Starting $sourceProgram"
+    start $sourceProgram
 }
 function countDown($seconds, $message) {
     foreach ($count in (1..$seconds)) {
