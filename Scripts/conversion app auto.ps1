@@ -1383,8 +1383,8 @@ function collectLogs()
     $automationLogsFolder = "automation_logs\" + $(now)
     createFolderIfNotExists "$automationLogsFolder"
     $run1Log = "Run1"
-    $consoleAppLog = "DatabaseConversion.ConsoleApp\Logs"
-    $azureImportBlobLog = "DatabaseConversion.AzureImportBlob\Logs"
+    $consoleAppLog = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\Logs"
+    $azureImportBlobLog = "$conv_ledgerFolder\DatabaseConversion.AzureImportBlob\Logs"
     collectLog $run1Log $automationLogsFolder
     collectLog $consoleAppLog $automationLogsFolder $true "consoleapp.log"
     collectLog $azureImportBlobLog $automationLogsFolder $true  "azureimportblob.log"
