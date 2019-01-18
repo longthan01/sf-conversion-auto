@@ -112,7 +112,7 @@ $conv_defaultSourceCodeBackupFolder = "$conv_automationBackupFolder\source code"
 $conv_changeCollationSqlScriptPath = "$conv_ledgerFolder\Change_Collation.sql"
 $conv_copyCustomConfigScriptPath = "$conv_ledgerFolder\Copy_Custom_Config.cmd"
 $conv_siteSpecificScriptsFolder = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\SiteSpecific\$conv_ledgerName"
-
+$recordCountFolder = "$conv_automationReportsFolder\Records Count"
 $conv_ledger_db = $conv_ledgerName
 $conv_ledger_insight_db = "$conv_ledgerName" + "Insight"
 
@@ -1170,7 +1170,7 @@ function prepareReports() {
     copyReportFile $conv_sunriseAuditResultPath $conv_automationReportsFolder
 
     #copy records count reports to automation reports folder
-    $recordCountFolder = "$conv_automationReportsFolder\Records Count"
+
     copyReportsFromFolder "$conv_recordCountReportsFolder" "$recordCountFolder"
     copyReportFile "$conv_ledgerFolder\Run1\Conversion Record Counts.xlsx" $recordCountFolder
     copyReportFile "$conv_ledgerFolder\Run1\PreConversionRecordCount.txt" $recordCountFolder
@@ -1436,14 +1436,19 @@ function test() {
 function fillOutRecordCount () {
     Write-Output "begin";
     Write-Output $recordCountFolder
-    $PreConvRecordCountContent = Get-Content -Path "D:\Migration\Test\PreConversionRecordCount.txt"
-    $PostConvRecordCountContent = Get-Content -Path "D:\Migration\Test\PostConversionRecordCount.txt"
+    # test local folder
+    # $PreConvRecordCountContent = Get-Content -Path "D:\Migration\Test\PreConversionRecordCount.txt"
+    # $PostConvRecordCountContent = Get-Content -Path "D:\Migration\Test\PostConversionRecordCount.txt"
 
 
+    $PreConvRecordCountContent = Get-Content -Path "$recordCountFolder\PreConversionRecordCount.txt"
+    $PostConvRecordCountContent = Get-Content -Path "$recordCountFolder\PostConversionRecordCount.txt"
+    $targetFilePath = "$recordCountFolder\Conversion Record Counts.xlsx"
+    
     # Open record count spreadsheet and write value
     $objExcel = New-Object -com Excel.Application
     $objExcel.Visible = $True
-    $targetFilePath = "D:\Migration\Test\Conversion Record Counts.xlsx"
+    # $targetFilePath = "D:\Migration\Test\Conversion Record Counts.xlsx"
     $UserWorkBook = $objExcel.Workbooks.Open($targetFilePath)
     $UserWorksheet = $UserWorkBook.Worksheets.Item(1)
 
