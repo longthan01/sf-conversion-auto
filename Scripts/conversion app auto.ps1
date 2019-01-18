@@ -150,6 +150,7 @@ function printEnvironmentVariables() {
 }
 
 $TASKS = @(
+    @{name = "help"; handler = "printUsage"; desc = "Get help from super fucking intelligent AI"},
     @{name = "step0-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
     @{name = "step1-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
     @{name = "step2-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
@@ -176,34 +177,75 @@ $TASKS = @(
     @{name = "util-RecordCountAutoFill"; handler = "fillOutRecordCount"; desc = "AI to fill out record count spreadsheet"}
 
 )
-function main() {
-    $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
-    $conv_appSourceFolder = replaceIfCurrentPath $conv_appSourceFolder
-    $conv_automationBackupFolder = replaceIfCurrentPath $conv_automationBackupFolder
-    $conv_automationReportsFolder = replaceIfCurrentPath $conv_automationReportsFolder
-    $conv_defaultDatabaseBackupFolder = replaceIfCurrentPath $conv_defaultDatabaseBackupFolder
-    $conv_changeCollationSqlScriptPath = replaceIfCurrentPath $conv_changeCollationSqlScriptPath
-    $conv_copyCustomConfigScriptPath = replaceIfCurrentPath $conv_copyCustomConfigScriptPath
-    $conv_ledger_db_backup_file_path = replaceIfCurrentPath $conv_ledger_db_backup_file_path
+function UngDungTuDongChuyenDoi {
+    [CmdletBinding()]
+    param()
+    DynamicParam {
+        $ParameterName = 'task'
 
-    printEnvironmentVariables
+        $RunTimeDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
 
-    # check if azure context is initialized, if not, call add-azurermaccount
-    #prepareAzureContext
+        $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute]
 
-    if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
-        printUsage
-        return
-    }
+        $ParamAttribute = New-Object System.Management.Automation.ParameterAttribute
+        $ParamAttribute.Mandatory = $false
+        $ParamAttribute.Position = 0
 
-    $task = $task.ToLower().Trim()
-    foreach ($t in $TASKS) {
-        if ($t.name -eq $task) {
-            wh "[$($t.name)] USAGE: $($t.desc)"
-            wh
-            &$t.handler
+        $AttributeCollection.Add($ParamAttribute)
+
+        $ValidateItems = $TASKS.name
+        
+        $ValidateSetAttribute = New-Object System.Management.Automation.ValidateSetAttribute($ValidateItems)
+
+        $AttributeCollection.Add($ValidateSetAttribute)
+
+        $RunTimeParam = New-Object System.Management.Automation.RuntimeDefinedParameter($ParameterName, [string], $AttributeCollection)
+        $RunTimeDictionary.Add($ParameterName, $RunTimeParam)
+
+        Return $RunTimeDictionary
+   }
+   begin {
+    #    if (!$PSBoundParameters[$ParameterName])
+    #    {
+    #        $PSBoundParameters[$ParameterName] = "help"
+    #    }
+       $task = $PSBoundParameters[$ParameterName]
+       if (!$task)
+       {
+           $task = "help"
+       }
+   }
+   process{
+        $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
+        $conv_appSourceFolder = replaceIfCurrentPath $conv_appSourceFolder
+        $conv_automationBackupFolder = replaceIfCurrentPath $conv_automationBackupFolder
+        $conv_automationReportsFolder = replaceIfCurrentPath $conv_automationReportsFolder
+        $conv_defaultDatabaseBackupFolder = replaceIfCurrentPath $conv_defaultDatabaseBackupFolder
+        $conv_changeCollationSqlScriptPath = replaceIfCurrentPath $conv_changeCollationSqlScriptPath
+        $conv_copyCustomConfigScriptPath = replaceIfCurrentPath $conv_copyCustomConfigScriptPath
+        $conv_ledger_db_backup_file_path = replaceIfCurrentPath $conv_ledger_db_backup_file_path
+
+        printEnvironmentVariables
+
+        # check if azure context is initialized, if not, call add-azurermaccount
+        #prepareAzureContext
+        # if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
+        #     printUsage
+        #     return
+        # }
+
+        $task = $task.ToLower().Trim()
+        foreach ($t in $TASKS) {
+            if ($t.name -eq $task) {
+                wh "[$($t.name)] USAGE: $($t.desc)"
+                wh
+                &$t.handler
+                return
+            }
         }
-    }
+        # default task if there's no parameter provided 
+        printUsage
+   }
 }
 
 # COMMON FUNCTIONS #
@@ -280,7 +322,7 @@ function getSqlDefaultPath($type) {
     return $result
 }
 function pullCodeFromUpstream($sourceDir) {
-    if(!Test-Path -path $sourceDir)
+    if(!(Test-Path -path $sourceDir))
     {
         wh "FOLDER $sourceDir DID NOT EXISTS" $color_error
         return
@@ -356,7 +398,7 @@ function buildSolutions() {
 function getConfigValue($appconfigFilePath, $xpath, $attribute) {
     if (!(Test-Path -Path $appConfigFilePath)) {
         wh "$appConfigFilePath not found" $color_error
-        return
+        return $null
     }
     $appConfig = New-Object Xml
     $appConfig.Load($appConfigFilePath)
@@ -1008,6 +1050,11 @@ function isTableExist($dbName, $tableName) {
     return $true
 }
 function runSunriseExport() {
+    $sunriseExportTool = "$conv_ledgerFolder\boa-sunrise-export\SunriseExport.exe"
+    runProgramOnlyIfAProcessIsExited $sunriseExportTool "SvuAudit"
+    #sleep a few milliseconds to ensure the tool completely started before run the automation tool
+    Start-Sleep -Milliseconds 1000
+
     $query = ""
     $sunriseCredentials = @()
     $un = ""
@@ -1029,16 +1076,6 @@ function runSunriseExport() {
         }
     }
     
-    $sunriseExportToolFolder = "$conv_ledgerFolder\boa-sunrise-export"
-    Set-Location $sunriseExportToolFolder
-    $sunriseExportTool = "$sunriseExportToolFolder\SunriseExport.exe"
-    if (!(Test-Path -Path $sunriseExportTool)) {
-        wh "Sunrise export tool does not exist" $color_error
-        return
-    }
-    start "$sunriseExportTool"
-    #sleep a few milliseconds to ensure the tool completely started before run the automation tool
-    Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
     auditAutomationTool -procName "SunriseExport" -controlId cbxSunriseURL -controlValue "Production Proxy" 
     auditAutomationTool -procName "SunriseExport" -controlId cbxVersion -controlValue "Latest version only" 
@@ -1083,37 +1120,66 @@ function checkPostConversionScripts() {
 #wait a few seconds for each run
 function runAuditTools() {
     $azureInsightDbConnString = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomConnectionStrings.config" 'connectionStrings/add[@name="DestinationDatabase"]' "connectionString"
-    $svuAuditToolFoler = "$conv_ledgerFolder\boa-svu-audit"
-    Set-Location -Path $svuAuditToolFoler
-    start "$svuAuditToolFoler\SvuAudit.exe"
+    runProgramOnlyIfAProcessIsExited "$conv_ledgerFolder\boa-svu-audit\SvuAudit.exe"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 500
     Set-Location -Path $executionFolder
     $listingFile = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomAppSettings.config" 'appSettings/add[@key="SvuCSVFilePath"]' "value"
-    if (!(Test-Path -Path $listingFile)) {
-        wh "$listingFile does not existed" $color_warning
+    if (!$listingFile -Or !(Test-Path -Path $listingFile)) {
+        wh "Listing file $listingFile does not existed" $color_warning
     }
     auditAutomationTool -procName "SvuAudit" -controlId txtOpportunityFile -controlValue $listingFile
     auditAutomationTool -procName "SvuAudit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
-    countDown 60 "Wait 60s to run Sunrise export"
-
     runSunriseExport
-    countDown 120 "Wait 120s to run Sunrise audit"
-
-    $sunriseAuditToolFolder = "$conv_ledgerFolder\boa-sunrise-audit"
-    Set-Location $sunriseAuditToolFolder
-    $sunriseAuditTool = "$sunriseAuditToolFolder\boa-sunrise-audit.exe"
-    if (!(Test-Path -Path $sunriseAuditTool)) {
-        wh "Sunrise audit tool does not exist" $color_error
-        return
-    }
-    start $sunriseAuditTool
+    $sunriseAuditTool = "$conv_ledgerFolder\boa-sunrise-audit\boa-sunrise-audit.exe"
+    runProgramOnlyIfAProcessIsExited $sunriseAuditTool "SunriseExport"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
-    $outputFileFromSunriseExport = Get-ChildItem "$conv_ledgerFolder\boa-sunrise-export\Output" | Sort {$_.LastWriteTime} | select -last 1
+    $sunriseExportOutput = "$conv_ledgerFolder\boa-sunrise-export\Output"
+    if (!(Test-Path -Path $sunriseExportOutput))
+    {
+        wh "Sunrise export output did not exist" $color_error
+        return 
+    }
+    $outputFileFromSunriseExport = Get-ChildItem $sunriseExportOutput | Sort {$_.LastWriteTime} | select -last 1
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtPolicyFile -controlValue "$($outputFileFromSunriseExport.FullName)" 
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
+}
+function runProgramOnlyIfAProcessIsExited($sourceProgram, $otherProcessName)
+{
+    if (!(Test-Path -Path $sourceProgram)) {
+        wh "$sourceProgram does not exist" $color_error
+        return
+    }
+    wh "Awaiting $otherProcessName exit to run $sourceProgram"
+    $sourceProgramDir = Split-Path $sourceProgram
+    Set-Location $sourceProgramDir
+    $otherProcessIsExited = $false
+    if (!$otherProcessName)
+    {
+        $otherProcessIsExited = $true
+    }
+    $count = 0
+    $sourceProgramName = Split-Path -Leaf $sourceProgram
+    while (!$otherProcessIsExited)
+    {
+        $otherProcess = Get-Process $otherProcessName -ErrorAction SilentlyContinue
+        if ($otherProcess)
+        {
+            #wait 1s if other process still running
+            $count = $count + 1
+            wh "$count try, $otherProcessName still running, could not start $sourceProgramName" $color_warning
+            Start-Sleep -Seconds 1 
+        }
+        else {
+            wh "$otherProcess"
+            #other process exited, turn off the flag
+            $otherProcessIsExited = $true
+        }
+    }
+    wh "Starting $sourceProgram"
+    start $sourceProgram
 }
 function countDown($seconds, $message) {
     foreach ($count in (1..$seconds)) {
