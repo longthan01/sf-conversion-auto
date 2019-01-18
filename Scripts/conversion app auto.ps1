@@ -1656,4 +1656,4 @@ function UpdateFields ([String]$excelPattern, [String] $textPattern, $worksheet,
     }
 }
 
-main
+UngDungTuDongChuyenDoi
