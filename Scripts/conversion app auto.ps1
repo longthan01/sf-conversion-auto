@@ -280,7 +280,7 @@ function getSqlDefaultPath($type) {
     return $result
 }
 function pullCodeFromUpstream($sourceDir) {
-    if(!Test-Path -path $sourceDir)
+    if(!(Test-Path -path $sourceDir))
     {
         wh "FOLDER $sourceDir DID NOT EXISTS" $color_error
         return
@@ -1008,6 +1008,11 @@ function isTableExist($dbName, $tableName) {
     return $true
 }
 function runSunriseExport() {
+    $sunriseExportTool = "$conv_ledgerFolder\boa-sunrise-export\SunriseExport.exe"
+    runProgramOnlyIfAProcessIsExited $sunriseExportTool "SvuAudit"
+    #sleep a few milliseconds to ensure the tool completely started before run the automation tool
+    Start-Sleep -Milliseconds 1000
+
     $query = ""
     $sunriseCredentials = @()
     $un = ""
@@ -1029,10 +1034,6 @@ function runSunriseExport() {
         }
     }
     
-    $sunriseExportTool = "$conv_ledgerFolder\boa-sunrise-export\SunriseExport.exe"
-    runProgramOnlyIfAProcessIsExited $sunriseExportTool "boa-svu-audit"
-    #sleep a few milliseconds to ensure the tool completely started before run the automation tool
-    Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
     auditAutomationTool -procName "SunriseExport" -controlId cbxSunriseURL -controlValue "Production Proxy" 
     auditAutomationTool -procName "SunriseExport" -controlId cbxVersion -controlValue "Latest version only" 
@@ -1089,11 +1090,17 @@ function runAuditTools() {
     auditAutomationTool -procName "SvuAudit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
     runSunriseExport
     $sunriseAuditTool = "$conv_ledgerFolder\boa-sunrise-audit\boa-sunrise-audit.exe"
-    runProgramOnlyIfAProcessIsExited $sunriseAuditTool "boa-sunrise-export"
+    runProgramOnlyIfAProcessIsExited $sunriseAuditTool "SunriseExport"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
     Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
-    $outputFileFromSunriseExport = Get-ChildItem "$conv_ledgerFolder\boa-sunrise-export\Output" | Sort {$_.LastWriteTime} | select -last 1
+    $sunriseExportOutput = "$conv_ledgerFolder\boa-sunrise-export\Output"
+    if (!(Test-Path -Path $sunriseExportOutput))
+    {
+        wh "Sunrise export output did not exist" $color_error
+        return 
+    }
+    $outputFileFromSunriseExport = Get-ChildItem $sunriseExportOutput | Sort {$_.LastWriteTime} | select -last 1
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtPolicyFile -controlValue "$($outputFileFromSunriseExport.FullName)" 
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
 }
@@ -1111,15 +1118,20 @@ function runProgramOnlyIfAProcessIsExited($sourceProgram, $otherProcessName)
     {
         $otherProcessIsExited = $true
     }
+    $count = 0
+    $sourceProgramName = Split-Path -Leaf $sourceProgram
     while (!$otherProcessIsExited)
     {
         $otherProcess = Get-Process $otherProcessName -ErrorAction SilentlyContinue
-        if (!$otherProcess)
+        if ($otherProcess)
         {
             #wait 1s if other process still running
-            Start-Sleep 1000 
+            $count = $count + 1
+            wh "$count try, $otherProcessName still running, could not start $sourceProgramName" $color_warning
+            Start-Sleep -Seconds 1 
         }
         else {
+            wh "$otherProcess"
             #other process exited, turn off the flag
             $otherProcessIsExited = $true
         }
