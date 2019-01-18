@@ -150,6 +150,7 @@ function printEnvironmentVariables() {
 }
 
 $TASKS = @(
+    @{name = "help"; handler = "printUsage"; desc = "Get help from super fucking intelligent AI"},
     @{name = "step0-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
     @{name = "step1-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
     @{name = "step2-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
@@ -176,34 +177,75 @@ $TASKS = @(
     @{name = "util-RecordCountAutoFill"; handler = "fillOutRecordCount"; desc = "AI to fill out record count spreadsheet"}
 
 )
-function main() {
-    $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
-    $conv_appSourceFolder = replaceIfCurrentPath $conv_appSourceFolder
-    $conv_automationBackupFolder = replaceIfCurrentPath $conv_automationBackupFolder
-    $conv_automationReportsFolder = replaceIfCurrentPath $conv_automationReportsFolder
-    $conv_defaultDatabaseBackupFolder = replaceIfCurrentPath $conv_defaultDatabaseBackupFolder
-    $conv_changeCollationSqlScriptPath = replaceIfCurrentPath $conv_changeCollationSqlScriptPath
-    $conv_copyCustomConfigScriptPath = replaceIfCurrentPath $conv_copyCustomConfigScriptPath
-    $conv_ledger_db_backup_file_path = replaceIfCurrentPath $conv_ledger_db_backup_file_path
+function UngDungTuDongChuyenDoi {
+    [CmdletBinding()]
+    param()
+    DynamicParam {
+        $ParameterName = 'task'
 
-    printEnvironmentVariables
+        $RunTimeDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
 
-    # check if azure context is initialized, if not, call add-azurermaccount
-    #prepareAzureContext
+        $AttributeCollection = New-Object System.Collections.ObjectModel.Collection[System.Attribute]
 
-    if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
-        printUsage
-        return
-    }
+        $ParamAttribute = New-Object System.Management.Automation.ParameterAttribute
+        $ParamAttribute.Mandatory = $false
+        $ParamAttribute.Position = 0
 
-    $task = $task.ToLower().Trim()
-    foreach ($t in $TASKS) {
-        if ($t.name -eq $task) {
-            wh "[$($t.name)] USAGE: $($t.desc)"
-            wh
-            &$t.handler
+        $AttributeCollection.Add($ParamAttribute)
+
+        $ValidateItems = $TASKS.name
+        
+        $ValidateSetAttribute = New-Object System.Management.Automation.ValidateSetAttribute($ValidateItems)
+
+        $AttributeCollection.Add($ValidateSetAttribute)
+
+        $RunTimeParam = New-Object System.Management.Automation.RuntimeDefinedParameter($ParameterName, [string], $AttributeCollection)
+        $RunTimeDictionary.Add($ParameterName, $RunTimeParam)
+
+        Return $RunTimeDictionary
+   }
+   begin {
+    #    if (!$PSBoundParameters[$ParameterName])
+    #    {
+    #        $PSBoundParameters[$ParameterName] = "help"
+    #    }
+       $task = $PSBoundParameters[$ParameterName]
+       if (!$task)
+       {
+           $task = "help"
+       }
+   }
+   process{
+        $conv_ledgerFolder = replaceIfCurrentPath $conv_ledgerFolder
+        $conv_appSourceFolder = replaceIfCurrentPath $conv_appSourceFolder
+        $conv_automationBackupFolder = replaceIfCurrentPath $conv_automationBackupFolder
+        $conv_automationReportsFolder = replaceIfCurrentPath $conv_automationReportsFolder
+        $conv_defaultDatabaseBackupFolder = replaceIfCurrentPath $conv_defaultDatabaseBackupFolder
+        $conv_changeCollationSqlScriptPath = replaceIfCurrentPath $conv_changeCollationSqlScriptPath
+        $conv_copyCustomConfigScriptPath = replaceIfCurrentPath $conv_copyCustomConfigScriptPath
+        $conv_ledger_db_backup_file_path = replaceIfCurrentPath $conv_ledger_db_backup_file_path
+
+        printEnvironmentVariables
+
+        # check if azure context is initialized, if not, call add-azurermaccount
+        #prepareAzureContext
+        # if (($task -eq 'h') -Or ([string]::IsNullOrEmpty($task))) {
+        #     printUsage
+        #     return
+        # }
+
+        $task = $task.ToLower().Trim()
+        foreach ($t in $TASKS) {
+            if ($t.name -eq $task) {
+                wh "[$($t.name)] USAGE: $($t.desc)"
+                wh
+                &$t.handler
+                return
+            }
         }
-    }
+        # default task if there's no parameter provided 
+        printUsage
+   }
 }
 
 # COMMON FUNCTIONS #
