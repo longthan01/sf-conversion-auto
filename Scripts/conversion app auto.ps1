@@ -1126,6 +1126,7 @@ function runSunriseExport() {
     auditAutomationTool -procName "SunriseExport" -controlId cbxVersion -controlValue "Latest version only" 
     auditAutomationTool -procName "SunriseExport" -controlId txtSunriseUsername -controlValue "$un" 
     auditAutomationTool -procName "SunriseExport" -controlId txtSunrisePassword -controlValue "$pw" 
+    auditAutomationTool -procName "SunriseExport" -controlId btnRun 
 }
 
 function checkPreConversionScripts() {
@@ -1167,7 +1168,7 @@ function runAuditTools() {
     $azureInsightDbConnString = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomConnectionStrings.config" 'connectionStrings/add[@name="DestinationDatabase"]' "connectionString"
     runProgramOnlyIfAProcessIsExited "$conv_ledgerFolder\boa-svu-audit\SvuAudit.exe"
     #sleep a few milliseconds to ensure the tool completely started before run the automation tool
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 1000
     Set-Location -Path $executionFolder
     $listingFile = getConfigValue "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\CustomAppSettings.config" 'appSettings/add[@key="SvuCSVFilePath"]' "value"
     if (!$listingFile -Or !(Test-Path -Path $listingFile)) {
@@ -1175,6 +1176,8 @@ function runAuditTools() {
     }
     auditAutomationTool -procName "SvuAudit" -controlId txtOpportunityFile -controlValue $listingFile
     auditAutomationTool -procName "SvuAudit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
+    auditAutomationTool -procName "SvuAudit" -controlId btnRun 
+    
     runSunriseExport
     $sunriseAuditTool = "$conv_ledgerFolder\boa-sunrise-audit\boa-sunrise-audit.exe"
     runProgramOnlyIfAProcessIsExited $sunriseAuditTool "SunriseExport"
@@ -1190,6 +1193,7 @@ function runAuditTools() {
     $outputFileFromSunriseExport = Get-ChildItem $sunriseExportOutput | Sort {$_.LastWriteTime} | select -last 1
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtPolicyFile -controlValue "$($outputFileFromSunriseExport.FullName)" 
     auditAutomationTool -procName "boa-sunrise-audit" -controlId txtConnection -controlValue "$azureInsightDbConnString" 
+    auditAutomationTool -procName "boa-sunrise-audit" -controlId btnRun
 }
 function runProgramOnlyIfAProcessIsExited($sourceProgram, $otherProcessName)
 {
