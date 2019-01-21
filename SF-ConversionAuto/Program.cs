@@ -20,7 +20,8 @@ namespace SF_ConversionAuto
         protected Process Process;
         protected AutomationElement MainWindow;
         protected ControlValueController ChainedHandler;
-        public ControlValueController(string value, string controlId, string processName)
+
+        protected ControlValueController(string value, string controlId, string processName)
         {
             Value = value;
             ControlId = controlId;
@@ -43,7 +44,7 @@ namespace SF_ConversionAuto
             this.Execute();
             if (this.ChainedHandler != null)
             {
-                this.ChainedHandler.Execute();
+                this.ChainedHandler.SetValue();
             }
         }
 
@@ -53,6 +54,35 @@ namespace SF_ConversionAuto
         {
             this.ChainedHandler = handler;
             return this;
+        }
+    }
+
+    public class ButtonControlValueController : ControlValueController
+    {
+        public ButtonControlValueController(string value, string controlId, string processName) : base(value, controlId, processName)
+        {
+        }
+
+        protected override void Execute()
+        {
+            Condition controlCondition = new PropertyCondition(AutomationElement.AutomationIdProperty, ControlId);
+            var element = MainWindow.FindFirst(TreeScope.Children, controlCondition);
+            if (element != null)
+            {
+                try
+                {
+                    object pattern = element.GetCurrentPattern(InvokePattern.Pattern);
+                    if (pattern != null && pattern is InvokePattern)
+                    {
+                        InvokePattern invokePtr = pattern as InvokePattern;
+                        invokePtr.Invoke();
+                    }
+                }
+                catch (Exception)
+                {
+
+                }
+            }
         }
     }
 
@@ -82,7 +112,6 @@ namespace SF_ConversionAuto
 
                 }
             }
-            ChainedHandler.SetValue();
         }
     }
 
@@ -109,13 +138,13 @@ namespace SF_ConversionAuto
                 {
 
                 }
-                AutomationElementCollection comboboxItems = element.FindAll(TreeScope.Descendants, 
+                AutomationElementCollection comboboxItems = element.FindAll(TreeScope.Descendants,
                     new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
 
                 foreach (AutomationElement automationElement in comboboxItems)
                 {
                     string elementValue = automationElement.Current.Name;
-                    if(!string.IsNullOrEmpty(elementValue) && elementValue.Trim().ToLower().Equals(this.Value.Trim().ToLower()))
+                    if (!string.IsNullOrEmpty(elementValue) && elementValue.Trim().ToLower().Equals(this.Value.Trim().ToLower()))
                     {
                         //Finding the pattern which need to select
                         SelectionItemPattern selectPattern = (SelectionItemPattern)automationElement.GetCurrentPattern(SelectionItemPattern.Pattern);
@@ -136,8 +165,10 @@ namespace SF_ConversionAuto
                 var processName = parameters.FirstOrDefault(x => x.Key == "-procName").Value;
                 var controlId = parameters.FirstOrDefault(x => x.Key == "-controlId").Value;
                 var controlValue = parameters.FirstOrDefault(x => x.Key == "-controlValue").Value;
-                var controller = new TextBoxControlValueController(controlValue, controlId, processName)
-                    .SetChain(new ComboboxControlValueController(controlValue, controlId, processName));
+                var controller =
+                    new TextBoxControlValueController(controlValue, controlId, processName)
+                        .SetChain(new ComboboxControlValueController(controlValue, controlId, processName)
+                                .SetChain(new ButtonControlValueController(controlValue, controlId, processName)));
                 controller.SetValue();
             }
             catch (Exception ex)
