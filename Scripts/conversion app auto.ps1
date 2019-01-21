@@ -52,7 +52,18 @@ function getConfigFieldValue($config, $fieldName) {
 }
 
 #path to msbuild, use for auto build
-Set-Alias msbuild "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"
+$MSBUILDS = @( 
+    @{name = "Enterprise"; path = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"},
+    @{name = "Community"; path = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"}
+)
+foreach($b in $MSBUILDS) {
+    if(Test-Path -Path $b.path)
+    {
+        Set-Alias msbuild "$($b.path)"
+        break
+    }
+}
+
 Set-Alias auditAutomationTool ".\SF-ConversionAuto.exe"
 
 # enums #
@@ -94,10 +105,44 @@ $conv_ledger_db_backup_file_path = "$conv_ledgerFolder\Raw Data\$conv_ledger_db_
 #################################
 
 #path to your repo folders
-$local_conversionRootPath = "F:\Steadfast\Migration\boa-data-conversion"
-$local_sunriseAuditRootPath = "F:\Steadfast\Migration\boa-sunrise-audit"
-$local_sunriseExportRootPath = "F:\Steadfast\Migration\boa-sunrise-export"
-$local_svuAuditRootPath = "F:\Steadfast\Migration\boa-svu-audit"
+function getFirstExistedPath($paths)
+{
+    foreach($p in $paths)
+    {
+        if (Test-Path -Path $p)
+        {
+            return $p
+        }
+    }
+    return ""
+}
+$LOCAL_SOLUTION_PATHS = @(
+    @{name = "consoleApp"; paths = @("D:\sfg-repos\insight_data_conversion\boa-data-conversion");},  
+    @{name = "sunriseAudit"; paths = @("D:\sfg-repos\boa-sunrise-audit");},  
+    @{name = "sunriseExport"; paths = @("D:\sfg-repos\boa-sunrise-export");},  
+    @{name = "svuAudit"; paths = @("D:\sfg-repos\boa-svu-audit");}
+)
+
+$local_conversionRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "consoleApp"}).paths
+if(!(Test-Path -Path $local_conversionRootPath))
+{
+    wh "Console app path did not existed" $color_error
+}
+$local_sunriseAuditRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "sunriseAudit"}).paths
+if(!(Test-Path -Path $local_sunriseAuditRootPath))
+{
+    wh "Sunrise audit path did not existed" $color_error
+}
+$local_sunriseExportRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "sunriseExport"}).paths
+if(!(Test-Path -Path $local_sunriseExportRootPath))
+{
+    wh "Sunrise export path did not existed" $color_error
+}
+$local_svuAuditRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "svuAudit"}).paths
+if(!(Test-Path -Path $local_svuAuditRootPath))
+{
+    wh "SVU audit path did not existed" $color_error
+}
 
 #conversion machine paths
 $CONV_MACHINES = @(
