@@ -124,22 +124,22 @@ $LOCAL_SOLUTION_PATHS = @(
 )
 
 $local_conversionRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "consoleApp"}).paths
-if(!(Test-Path -Path $local_conversionRootPath))
+if(!$local_conversionRootPath -or !(Test-Path -Path $local_conversionRootPath))
 {
     wh "Console app path did not existed" $color_error
 }
 $local_sunriseAuditRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "sunriseAudit"}).paths
-if(!(Test-Path -Path $local_sunriseAuditRootPath))
+if(!$local_sunriseAuditRootPath -or !(Test-Path -Path $local_sunriseAuditRootPath))
 {
     wh "Sunrise audit path did not existed" $color_error
 }
 $local_sunriseExportRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "sunriseExport"}).paths
-if(!(Test-Path -Path $local_sunriseExportRootPath))
+if(!$local_sunriseExportRootPath -or !(Test-Path -Path $local_sunriseExportRootPath))
 {
     wh "Sunrise export path did not existed" $color_error
 }
 $local_svuAuditRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "svuAudit"}).paths
-if(!(Test-Path -Path $local_svuAuditRootPath))
+if(!$local_svuAuditRootPath -or !(Test-Path -Path $local_svuAuditRootPath))
 {
     wh "SVU audit path did not existed" $color_error
 }
