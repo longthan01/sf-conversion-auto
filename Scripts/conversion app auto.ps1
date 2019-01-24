@@ -1062,7 +1062,7 @@ function createInsightDb() {
         wh "Folder $createdbScriptFolder does not exsited" $color_error
         return
     }
-    $scripts = @((Get-ChildItem -LiteralPath $createdbScriptFolder -Filter "*BOALedgerCreate*").FullName)
+    $scripts = @((Get-ChildItem -LiteralPath $createdbScriptFolder -Filter "*BOALedgerCreate*" | Sort-Object -Descending).FullName)
     if ($scripts.Count -eq 0) {
         wh "There is no sql create script in $createdbScriptFolder"
     }
