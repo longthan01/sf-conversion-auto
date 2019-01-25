@@ -1032,8 +1032,12 @@ function copyInsightCreationScript() {
 #now fucking run it by your fucking hand
 function createInsightDb() {
     if ((checkDbExist $conv_ledger_insight_db)) {
-        wh "$conv_ledger_insight_db already exist, backing it up and delete the old one"
-        backupDb $conv_ledger_insight_db $conv_defaultDatabaseBackupFolder
+        wh "Do you FUCKING want to backup insight database first? [y/n], default is no [n]" $color_warning
+        $confirm = (Read-Host).Trim().ToLower()
+        if ($confirm -eq "y") {
+            wh "$conv_ledger_insight_db already exist, backing it up and delete the old one"
+            backupDb $conv_ledger_insight_db $conv_defaultDatabaseBackupFolder
+        }
         #delete the old one
         $delQuery = @"
         USE MASTER
