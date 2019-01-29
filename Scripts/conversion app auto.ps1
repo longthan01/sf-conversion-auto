@@ -196,6 +196,7 @@ function printEnvironmentVariables() {
 
 $TASKS = @(
     @{name = "help"; handler = "printUsage"; desc = "Get help from super fucking intelligent AI"},
+    @{name = "RunFullConversion"; handler = "RunFullConversion"; desc = "Run setup and start conversion"},
     @{name = "step0-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
     @{name = "step1-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
     @{name = "step2-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
@@ -504,6 +505,7 @@ function retrieveDatabaseLogicalNames($backupFile) {
 function wh($value = "", $color = $color_info, $newLine = 1) {
     if ([string]::IsNullOrEmpty($value)) {
         Write-Host
+        return
     }
 
     #add invocation function info
@@ -883,9 +885,9 @@ function recheckConfig() {
 function restoreDb($backupFile, $dbName) {
     $bakFile = $(Split-Path $backupFile -Leaf).Replace(".bak", "")
     if ($bakFile -ne $dbName) {
-        wh "The backup file $backupFile IS NOT THE SAME WITH database name $dbName, you you fucking want to continue? [y/n], default is [n]" $color_warning
+        wh "The backup file $backupFile IS NOT THE SAME WITH database name $dbName, you you fucking WANT TO CONTINUE? [y/n], default is [y]" $color_warning
         $confirm = (Read-Host).Trim()
-        if ($confirm -eq "y") {
+        if ($confirm -eq "n") {
             $dataDefaultPath = getSqlDefaultPath 'Data'
             $logDefaultPath = getSqlDefaultPath 'Log'
             $logicalNames = retrieveDatabaseLogicalNames $backupFile
@@ -1709,4 +1711,70 @@ function UpdateFields ([String]$excelPattern, [String] $textPattern, $worksheet,
     }
 }
 
+function applyCustomScriptsPreConsoleApp($preConsoleAppFolder)
+{
+    wh "Coping scripts from $preConsoleAppFolder to a fucking lot of folders"
+    $destFolders = @(
+        @{path = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\SiteSpecific\PostConversion"}
+        )
+    if($SOURCE_SYSTEM -eq $WINBEAT)
+    {
+        $destFolders += @{path = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\Winbeat\FullExtract"}
+    }
+    if($SOURCE_SYSTEM -eq $IBAIS)
+    {
+        $destFolders += @{path = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\iBais\NonStandard"}
+    }
+
+    $scripts = @((Get-ChildItem -Path "$preConsoleAppFolder" -Filter "*.sql" | Sort-Object LastWriteTime -Descending).FullName)
+    wh "Dest folders including: "
+    foreach ($p in $destFolders)
+    {
+        wh "`t$($p.path)" "white"
+    }
+    wh "Pre-console app scripts including: "
+    foreach ($s in $scripts)
+    {
+        wh "`t$s" "white"
+    }
+    foreach ($p in $destFolders)
+    {
+        foreach($s in $scripts)
+        {
+            $fileName = (Split-Path -Leaf $s)
+            $destFile = "$($p.path)\$fileName"
+            if(Test-Path -Path $destFile)
+            {
+                wh
+                wh "Coping $s into $($p.path)"
+                Copy-Item -Path $s -Destination "$($p.path)\$fineName"
+            }
+        }
+    }
+}
+function RunFullConversion()
+{
+    wh "*** STARTING CONVERSION WIZARD ***"
+    wh
+    wh "Step 1: Setting prepare environment"
+    prepareConvEnvironment
+    wh "Step 2: Extract source codes"
+    extract
+    wh "Step 3: Configure app settings / connection strings"
+    config
+    wh "Step 4: Apply configuration to main config files"
+    applyConfig
+    wh "Step 5: Restore ledger database"
+    restoreLedgerDb
+    wh "Step 6: Create insight database"
+    createInsightDb
+    wh "Step 7: Apply pre-console app scripts"
+    applyCustomScriptsPreConsoleApp "$conv_siteSpecificScriptsFolder\preconsoleapp"
+    wh "Step 8: Start console app"
+    Set-Location "$conv_ledgerFolder\DatabaseConversion.ConsoleApp"
+    Start-Process -FilePath ".\DatabaseConversion.ConsoleApp.exe"
+
+    Set-Location $executionFolder
+    wh "*** DONE ***"
+}
 UngDungTuDongChuyenDoi
