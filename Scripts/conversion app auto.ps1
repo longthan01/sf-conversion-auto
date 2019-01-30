@@ -172,7 +172,7 @@ $conv_svuAuditResultPath = "$conv_ledgerFolder\boa-svu-audit\Output"
 $color_info = 'green'
 $color_warning = 'yellow'
 $color_error = 'red'
-
+$color_important = 'magenta'
 function printUsage() {
     wh "Params:"
     wh "-task"
@@ -197,16 +197,16 @@ function printEnvironmentVariables() {
 $TASKS = @(
     @{name = "help"; handler = "printUsage"; desc = "Get help from super fucking intelligent AI"},
     @{name = "RunFullConversion"; handler = "RunFullConversion"; desc = "Run setup and start conversion"},
-    @{name = "step0-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
-    @{name = "step1-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
-    @{name = "step2-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
-    @{name = "step3-Zip"; handler = "archive"; desc = "Archive the conversion and related tools to $local_workingFolder"},
-    @{name = "step4-Extract"; handler = "extract"; desc = "Extract the conversion and related tools to $conv_ledgerFolder"},
-    @{name = "step5-Config"; handler = "config"; desc = "Read the CONFIG_ variables, then replace it from the custom config file placeholders"},
-    @{name = "step6-CheckConfig"; handler = "checkConfig"; desc = "Open custom config files to check ether your configurations are fucking right"},
-    @{name = "step7-ApplyConfig"; handler = "applyConfig"; desc = "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"},
-    @{name = "step8-RecheckConfig"; handler = "recheckConfig"; desc = "Open main config files and fucking re-check them by your fucking eyes"},
-    @{name = "step9-RestoreLedgerDb"; handler = "restoreLedgerDb"; desc = "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"},
+    @{name = "step00-PullCode"; handler = "pullLatestCode"; desc = "Get latest codes from upstream master"},
+    @{name = "step01-Build"; handler = "buildSolutions"; desc = "Build converson and related tools"},
+    @{name = "step02-Prepare"; handler = "prepareConvEnvironment"; desc = "Prepare the conversion environment: create folder 'Raw data' and 'Admin' if they're not existed, backup folder 'Run1' to 'Run1_[current datetime]' if it's existed"},
+    @{name = "step03-Zip"; handler = "archive"; desc = "Archive the conversion and related tools to $local_workingFolder"},
+    @{name = "step04-Extract"; handler = "extract"; desc = "Extract the conversion and related tools to $conv_ledgerFolder"},
+    @{name = "step05-Config"; handler = "config"; desc = "Read the CONFIG_ variables, then replace it from the custom config file placeholders"},
+    @{name = "step06-CheckConfig"; handler = "checkConfig"; desc = "Open custom config files to check ether your configurations are fucking right"},
+    @{name = "step07-ApplyConfig"; handler = "applyConfig"; desc = "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"},
+    @{name = "step08-RecheckConfig"; handler = "recheckConfig"; desc = "Open main config files and fucking re-check them by your fucking eyes"},
+    @{name = "step09-RestoreLedgerDb"; handler = "restoreLedgerDb"; desc = "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"},
     @{name = "step10-ChangeCollation"; handler = "changeCollationLedgerDb"; desc = "Check if the $conv_ledger_db has the right collation, if it's not, open the change collation script in ssms then you need to run it by your fucking hands"},
     @{name = "step11-CopyCreateInsightDbScript"; handler = "copyInsightCreationScript"; desc = "Copy Insight database creation script, this function basically copy out the path to script folder to clipboard. You need to open build machine then paste it to windows explorer to open the folder then copy the latest script by your fucking hands"},
     @{name = "step12-CreateInsightDB"; handler = "createInsightDb"; desc = "Create $($conv_ledgerName + "Insight") database, if the db is already existed, backup it to $conv_automationBackupFolder"},
@@ -689,24 +689,24 @@ function archive() {
     zipFile $local_sunriseExportRootPath'\bin\debug\*' $local_workingFolder'\boa-sunrise-export.zip'
     zipFile $local_svuAuditRootPath'\bin\debug\*' $local_workingFolder'\boa-svu-audit.zip'
 
-    $templateFiles = ""
-    if ($SOURCE_SYSTEM -eq $WINBEAT) {
-        $templateFiles = "$executionFolder\appconfig_template_winbeat.zip"
-    }
-    else {
-        if ($SOURCE_SYSTEM -eq $IBAIS) {
-            $templateFiles = "$executionFolder\appconfig_template_ibais.zip"
-        }
-    }
-    wh $templateFiles
-    if (!($templateFiles) -or !(Test-Path -Path $templateFiles)) {
-        wh "There's no configuration template files in $executionFolder" $color_warning
-        return 
-    }
-    else {
-        wh "Copying $templateFiles into $local_workingFolder" 
-        Copy-Item -Path $templateFiles -Destination "$local_workingFolder" -Force
-    }
+    # $templateFiles = ""
+    # if ($SOURCE_SYSTEM -eq $WINBEAT) {
+    #     $templateFiles = "$executionFolder\appconfig_template_winbeat.zip"
+    # }
+    # else {
+    #     if ($SOURCE_SYSTEM -eq $IBAIS) {
+    #         $templateFiles = "$executionFolder\appconfig_template_ibais.zip"
+    #     }
+    # }
+    # wh $templateFiles
+    # if (!($templateFiles) -or !(Test-Path -Path $templateFiles)) {
+    #     wh "There's no configuration template files in $executionFolder" $color_warning
+    #     return 
+    # }
+    # else {
+    #     wh "Copying $templateFiles into $local_workingFolder" 
+    #     Copy-Item -Path $templateFiles -Destination "$local_workingFolder" -Force
+    # }
 }
 
 #extract conversion console app and related tools, this step should be ran in development machine
@@ -1756,25 +1756,24 @@ function RunFullConversion()
 {
     wh "*** STARTING CONVERSION WIZARD ***"
     wh
-    wh "Step 1: Setting prepare environment"
+    wh "Step 1: Setting prepare environment" $color_important
     prepareConvEnvironment
-    wh "Step 2: Extract source codes"
+    wh "Step 2: Extract source codes" $color_important
     extract
-    wh "Step 3: Configure app settings / connection strings"
+    wh "Step 3: Configure app settings / connection strings" $color_important
     config
-    wh "Step 4: Apply configuration to main config files"
+    wh "Step 4: Apply configuration to main config files" $color_important
     applyConfig
-    wh "Step 5: Restore ledger database"
+    wh "Step 5: Restore ledger database" $color_important
     restoreLedgerDb
-    wh "Step 6: Create insight database"
+    wh "Step 6: Create insight database" $color_important
     createInsightDb
-    wh "Step 7: Apply pre-console app scripts"
+    wh "Step 7: Apply pre-console app scripts" $color_important
     applyCustomScriptsPreConsoleApp "$conv_siteSpecificScriptsFolder\preconsoleapp"
-    wh "Step 8: Start console app"
+    wh "Step 8: Start console app" $color_important
     Set-Location "$conv_ledgerFolder\DatabaseConversion.ConsoleApp"
     Start-Process -FilePath ".\DatabaseConversion.ConsoleApp.exe"
 
     Set-Location $executionFolder
     wh "*** DONE ***"
 }
-UngDungTuDongChuyenDoi
