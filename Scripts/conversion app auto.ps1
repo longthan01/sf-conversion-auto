@@ -1236,7 +1236,7 @@ function runProgramOnlyIfAProcessIsExited($sourceProgram, $otherProcessName)
     wh "Starting $sourceProgram"
     start $sourceProgram
 }
-function countDown($seconds, $message) {
+function countDown($seconds, $message = "Couting down") {
     foreach ($count in (1..$seconds)) {
         Write-Progress -Id 1 -Activity "$message" -Status "$($seconds - $count) left" -PercentComplete (($count / $seconds) * 100)
         Start-Sleep -Seconds 1
@@ -1758,18 +1758,25 @@ function RunFullConversion()
     wh
     wh "Step 1: Setting prepare environment" $color_important
     prepareConvEnvironment
+    countDown 3
     wh "Step 2: Extract source codes" $color_important
     extract
+    countDown 3
     wh "Step 3: Configure app settings / connection strings" $color_important
     config
+    countDown 3
     wh "Step 4: Apply configuration to main config files" $color_important
     applyConfig
+    countDown 3
     wh "Step 5: Restore ledger database" $color_important
     restoreLedgerDb
+    countDown 3
     wh "Step 6: Create insight database" $color_important
     createInsightDb
+    countDown 3
     wh "Step 7: Apply pre-console app scripts" $color_important
     applyCustomScriptsPreConsoleApp "$conv_siteSpecificScriptsFolder\preconsoleapp"
+    countDown 3
     wh "Step 8: Start console app" $color_important
     Set-Location "$conv_ledgerFolder\DatabaseConversion.ConsoleApp"
     Start-Process -FilePath ".\DatabaseConversion.ConsoleApp.exe"
