@@ -54,7 +54,7 @@ function getConfigFieldValue($config, $fieldName) {
 #path to msbuild, use for auto build
 $MSBUILDS = @( 
     @{name = "Enterprise"; path = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"},
-    @{name = "Community"; path = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSbuild.exe"}
+    @{name = "Community"; path = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\MSBuild\15.0\Bin\MSbuild.exe"}
 )
 foreach($b in $MSBUILDS) {
     if(Test-Path -Path $b.path)
@@ -117,10 +117,10 @@ function getFirstExistedPath($paths)
     return ""
 }
 $LOCAL_SOLUTION_PATHS = @(
-    @{name = "consoleApp"; paths = @("D:\sfg-repos\insight_data_conversion\boa-data-conversion");},  
-    @{name = "sunriseAudit"; paths = @("D:\sfg-repos\boa-sunrise-audit");},  
-    @{name = "sunriseExport"; paths = @("D:\sfg-repos\boa-sunrise-export");},  
-    @{name = "svuAudit"; paths = @("D:\sfg-repos\boa-svu-audit");}
+    @{name = "consoleApp"; paths = @("D:\sfg-repos\insight_data_conversion\boa-data-conversion","D:\Migration\boa-data-conversion");},  
+    @{name = "sunriseAudit"; paths = @("D:\sfg-repos\boa-sunrise-audit","D:\Migration\boa-sunrise-audit");},  
+    @{name = "sunriseExport"; paths = @("D:\sfg-repos\boa-sunrise-export","D:\Migration\boa-sunrise-export");},  
+    @{name = "svuAudit"; paths = @("D:\sfg-repos\boa-svu-audit","D:\Migration\boa-svu-audit");}
 )
 
 $local_conversionRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "consoleApp"}).paths
