@@ -220,7 +220,8 @@ $TASKS = @(
     @{name = "util-openDatabaseInSSMS"; handler = "openDatabaseInSSMS"; desc = "(conv) Open ledger's database in rc environment"},
     @{name = "util-prepareForRerun"; handler = "prepareForRerun"; desc = "(conv) Rerun conversion in case of the previous failed, this function will do: 1.Rename run1 2.Delete and restore source database 3.Delete and create destination database"},
     @{name = "util-collectLogsAfterRun"; handler = "collectLogs"; desc = "(conv) Collect log files after run conversion for fucking checking purpose"},
-    @{name = "util-RecordCountAutoFill"; handler = "fillOutRecordCount"; desc = "AI to fill out record count spreadsheet"}
+    @{name = "util-RecordCountAutoFill"; handler = "fillOutRecordCount"; desc = "AI to fill out record count spreadsheet"},
+    @{name = "moddy"; handler = "moddy"; desc = "Temp tool for moddy"}
 
 )
 function UngDungTuDongChuyenDoi {
@@ -295,7 +296,21 @@ function UngDungTuDongChuyenDoi {
 }
 
 # COMMON FUNCTIONS #
-
+function yesNo($default)
+{
+    $confirm = (Read-Host).Trim().ToLower()
+    if(!$confirm)
+    {
+        $confirm = $default
+    }
+    else {
+        if(($confirm -ne "y") -or ($confirm -ne "n"))
+        {
+            $confirm = $default
+        }
+    }
+    return $confirm.ToLower()
+}
 
 function prepareAzureContext() {
     $azureContext = Get-AzureRmContext
@@ -324,7 +339,7 @@ function zipFile ($sourcePath, $destinationPath) {
         Write-Host
         wh "'$destinationPath' folder is existing, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 1
         Write-Host
-        $confirm = (Read-Host).Trim().ToLower()
+        $confirm = yesNo "n"
         if ($confirm -eq "y") {
             Remove-Item -Path $destinationPath -Force -Recurse
         }
@@ -910,7 +925,7 @@ function restoreDb($backupFile, $dbName) {
 #this step is to restore ledger into conversion machine
 function restoreLedgerDb() {
     wh "Do you want to backup db first? [y/n], default is n" $color_warning
-    $confirm = (Read-Host).Trim().ToLower()
+    $confirm = yesNo "n"
     $backup = $false    
     if ($confirm -eq "y") {
         $backup = $true
@@ -1035,7 +1050,7 @@ function copyInsightCreationScript() {
 function createInsightDb() {
     if ((checkDbExist $conv_ledger_insight_db)) {
         wh "Do you FUCKING want to backup insight database first? [y/n], default is no [n]" $color_warning
-        $confirm = (Read-Host).Trim().ToLower()
+        $confirm = yesNo "n"
         if ($confirm -eq "y") {
             wh "$conv_ledger_insight_db already exist, backing it up and delete the old one"
             backupDb $conv_ledger_insight_db $conv_defaultDatabaseBackupFolder
@@ -1489,9 +1504,9 @@ function openDatabaseInSSMS() {
 
 function prepareForRerun() {
     Write-Host
-    wh "SURE?" $color_warning 1
+    wh "SURE [y/n]? default[n]" $color_warning 1
     Write-Host
-    $confirm = (Read-Host).Trim().ToLower()
+    $confirm = yesNo "n"
     if ($confirm -eq "y") {
         wh "Backing up run1"   
         backupRun1
@@ -1783,4 +1798,15 @@ function RunFullConversion()
 
     Set-Location $executionFolder
     wh "*** DONE ***"
+}
+
+function moddy()
+{
+    createInsightDb
+    $scripts = @((Get-ChildItem -Path "D:\sfg-repos\insight_data_conversion\boa-data-conversion\DatabaseConversion.ConsoleApp\SQLScripts\BrokerReady" -Filter "*.sql" | Sort-Object).FullName)
+    foreach ($s in $scripts)
+    {
+        wh "Executing script $s"
+        SQLCMD.EXE -i $s -d "ModdyInsight" -E -S '.'
+    }
 }
