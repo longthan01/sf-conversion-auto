@@ -155,7 +155,6 @@ $conv_automationBackupFolder = $conv_ledgerFolder + "\automation_backups"
 $conv_defaultDatabaseBackupFolder = "$conv_automationBackupFolder\database"
 $conv_defaultSourceCodeBackupFolder = "$conv_automationBackupFolder\source code"
 $conv_changeCollationSqlScriptPath = "$conv_ledgerFolder\Change_Collation.sql"
-$conv_copyCustomConfigScriptPath = "$conv_ledgerFolder\Copy_Custom_Config.cmd"
 $conv_siteSpecificScriptsFolder = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\SiteSpecific\$conv_ledgerName"
 $recordCountFolder = "$conv_automationReportsFolder\Records Count"
 $conv_ledger_db = $conv_ledgerName
@@ -204,7 +203,7 @@ $TASKS = @(
     @{name = "step04-Extract"; handler = "extract"; desc = "Extract the conversion and related tools to $conv_ledgerFolder"},
     @{name = "step05-Config"; handler = "config"; desc = "Read the CONFIG_ variables, then replace it from the custom config file placeholders"},
     @{name = "step06-CheckConfig"; handler = "checkConfig"; desc = "Open custom config files to check ether your configurations are fucking right"},
-    @{name = "step07-ApplyConfig"; handler = "applyConfig"; desc = "Run the $conv_copyCustomConfigScriptPath to copy custom config to main config"},
+    @{name = "step07-ApplyConfig"; handler = "applyConfig"; desc = "Copy custom config to main config"},
     @{name = "step08-RecheckConfig"; handler = "recheckConfig"; desc = "Open main config files and fucking re-check them by your fucking eyes"},
     @{name = "step09-RestoreLedgerDb"; handler = "restoreLedgerDb"; desc = "Restore $conv_ledger_db, if it's already existed, backup it to $conv_automationBackupFolder"},
     @{name = "step10-ChangeCollation"; handler = "changeCollationLedgerDb"; desc = "Check if the $conv_ledger_db has the right collation, if it's not, open the change collation script in ssms then you need to run it by your fucking hands"},
@@ -269,7 +268,6 @@ function UngDungTuDongChuyenDoi {
         $conv_automationReportsFolder = replaceIfCurrentPath $conv_automationReportsFolder
         $conv_defaultDatabaseBackupFolder = replaceIfCurrentPath $conv_defaultDatabaseBackupFolder
         $conv_changeCollationSqlScriptPath = replaceIfCurrentPath $conv_changeCollationSqlScriptPath
-        $conv_copyCustomConfigScriptPath = replaceIfCurrentPath $conv_copyCustomConfigScriptPath
         $conv_ledger_db_backup_file_path = replaceIfCurrentPath $conv_ledger_db_backup_file_path
 
         printEnvironmentVariables
@@ -861,12 +859,31 @@ function checkConfig() {
     Set-Location $executionFolder
 }
 
+function copyItemIfExists($sourceFile, $destinationFolder)
+{
+    if (Test-Path -Path $sourceFile)
+    {
+        wh "Coping $sourceFile to $destinationFolder"
+        Copy-Item "$sourceFile" "$destinationFolder" 
+    }
+    else {
+        wh "$sourceFile did not existed" $color_warning
+    }
+}
 #apply config of connection strings and app settings for a fucking lot of apps
 #basically, just run a batch file to copy config
 #this step will be ran in conversion machine
 function applyConfig() {
     Set-Location $conv_ledgerFolder
-    & $conv_copyCustomConfigScriptPath
+    copyItemIfExists "DatabaseConversion.AzureImportBlob.Config\CustomAppSettings.config" "DatabaseConversion.AzureImportBlob"
+    copyItemIfExists "DatabaseConversion.ConsoleApp.Config\CustomAppSettings.config" "DatabaseConversion.ConsoleApp"
+    copyItemIfExists "DatabaseConversion.ConsoleApp.Config\CustomConnectionStrings.config" "DatabaseConversion.ConsoleApp"
+    copyItemIfExists "ImportedSchedule.Config\CustomAppSettings.config" "ImportedSchedule"
+    copyItemIfExists "ImportedSchedule.Config\CustomConnectionStrings.config" "ImportedSchedule"
+     copyItemIfExists "DataCountChecker.Config\CustomAppSettings.config" "DataCountChecker"
+     copyItemIfExists "DataCountChecker.Config\CustomConnectionStrings.config" "DataCountChecker"
+     copyItemIfExists "PolicyNotesConversion.Config\CustomAppSettings.config" "PolicyNotesConversion"
+     copyItemIfExists "PolicyNotesConversion.Config\CustomConnectionStrings.config" "PolicyNotesConversion"
     Set-Location $executionFolder
 }
 
@@ -901,8 +918,8 @@ function restoreDb($backupFile, $dbName) {
     $bakFile = $(Split-Path $backupFile -Leaf).Replace(".bak", "")
     if ($bakFile -ne $dbName) {
         wh "The backup file $backupFile IS NOT THE SAME WITH database name $dbName, you you fucking WANT TO CONTINUE? [y/n], default is [y]" $color_warning
-        $confirm = (Read-Host).Trim()
-        if ($confirm -eq "n") {
+        $confirm = yesNo "y"
+        if ($confirm -eq "y") {
             $dataDefaultPath = getSqlDefaultPath 'Data'
             $logDefaultPath = getSqlDefaultPath 'Log'
             $logicalNames = retrieveDatabaseLogicalNames $backupFile
