@@ -297,16 +297,11 @@ function UngDungTuDongChuyenDoi {
 function yesNo($default)
 {
     $confirm = (Read-Host).Trim().ToLower()
-    if(!$confirm)
+    if ($confirm -ne "y" -and $confirm -ne "n")
     {
         $confirm = $default
     }
-    else {
-        if(($confirm -ne "y") -or ($confirm -ne "n"))
-        {
-            $confirm = $default
-        }
-    }
+    
     return $confirm.ToLower()
 }
 
@@ -335,21 +330,20 @@ function zipFile ($sourcePath, $destinationPath) {
     if (Test-Path -path $destinationPath) {
         # if root folder is existed, delete all of it's items
         Write-Host
-        wh "'$destinationPath' folder is existing, do you FUCKING WANT TO DELETE? [y/n], default is [n]" $color_warning 1
+        wh "'$destinationPath' folder is existing, do you FUCKING WANT TO DELETE? [y/n], default is [y]" $color_warning 1
         Write-Host
-        $confirm = yesNo "n"
+        $confirm = yesNo "y"
         if ($confirm -eq "y") {
             Remove-Item -Path $destinationPath -Force -Recurse
         }
         else {
             wh "You choose to no delete"
-            return
         }
     }
 
     wh "Zipping files in $sourcePath"
     #zip all files in source folder into destination folder
-    Compress-Archive -path $sourcePath -DestinationPath $destinationPath
+    Compress-Archive -path $sourcePath -DestinationPath $destinationPath -Force
 }
 function extractFileIntoFolder($sourcePath, $destinationPath) {
     if (!(Test-Path -Path $sourcePath)) {
