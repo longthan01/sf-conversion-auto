@@ -117,10 +117,10 @@ function getFirstExistedPath($paths)
     return ""
 }
 $LOCAL_SOLUTION_PATHS = @(
-    @{name = "consoleApp"; paths = @("D:\sfg-repos\insight_data_conversion\boa-data-conversion");},  
-    @{name = "sunriseAudit"; paths = @("D:\sfg-repos\boa-sunrise-audit");},  
-    @{name = "sunriseExport"; paths = @("D:\sfg-repos\boa-sunrise-export");},  
-    @{name = "svuAudit"; paths = @("D:\sfg-repos\boa-svu-audit");}
+    @{name = "consoleApp"; paths = @("D:\sfg-repos\insight_data_conversion\boa-data-conversion", "D:\Dev\INSIGHT\boa-data-conversion");},  
+    @{name = "sunriseAudit"; paths = @("D:\sfg-repos\boa-sunrise-audit", "D:\Dev\INSIGHT\boa-sunrise-audit");},  
+    @{name = "sunriseExport"; paths = @("D:\sfg-repos\boa-sunrise-export", "D:\Dev\INSIGHT\boa-sunrise-export");},  
+    @{name = "svuAudit"; paths = @("D:\sfg-repos\boa-svu-audit", "D:\Dev\INSIGHT\boa-svu-audit");}
 )
 
 $local_conversionRootPath = getFirstExistedPath $($LOCAL_SOLUTION_PATHS | Where-Object {$_.name -eq "consoleApp"}).paths
@@ -1715,7 +1715,7 @@ function applyCustomScriptsPreConsoleApp($preConsoleAppFolder)
 {
     wh "Coping scripts from $preConsoleAppFolder to a fucking lot of folders"
     $destFolders = @(
-        @{path = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\SiteSpecific\PostConversion"}
+        @{path = "$conv_ledgerFolder\DatabaseConversion.ConsoleApp\SQLScripts\PostConversion"}
         )
     if($SOURCE_SYSTEM -eq $WINBEAT)
     {
