@@ -910,9 +910,11 @@ function recheckConfig() {
 #for example, if ledger is Melbourne, now restore to database Melbourne
 function restoreDb($backupFile, $dbName) {
     $bakFile = $(Split-Path $backupFile -Leaf).Replace(".bak", "")
+    $confirm = "y"
     if ($bakFile -ne $dbName) {
         wh "The backup file $backupFile IS NOT THE SAME WITH database name $dbName, you you fucking WANT TO CONTINUE? [y/n], default is [y]" $color_warning
         $confirm = yesNo "y"
+    }
         if ($confirm -eq "y") {
             $dataDefaultPath = getSqlDefaultPath 'Data'
             $logDefaultPath = getSqlDefaultPath 'Log'
@@ -932,7 +934,6 @@ function restoreDb($backupFile, $dbName) {
             Write-Host $restoreQuery
             Invoke-Sqlcmd -ServerInstance '.' -Query $restoreQuery -QueryTimeout 900
         }
-    }
 }
 
 #this step is to restore ledger into conversion machine
