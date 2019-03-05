@@ -919,9 +919,11 @@ function restoreDb($backupFile, $dbName) {
             $logicalNames = retrieveDatabaseLogicalNames $backupFile
             $restoreQuery = @"
             USE [master]
-            RESTORE DATABASE [$conv_ledger_db] FROM  DISK = N'$backupFile' WITH  FILE = 1,  
-            MOVE N'$($logicalNames.data)' TO N'$($dataDefaultPath + $conv_ledger_db + ".mdf")',  
-            MOVE N'$($logicalNames.log)' TO N'$($logDefaultPath + $conv_ledger_db + "_Log.ldf")',  
+            ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
+            GO
+            RESTORE DATABASE [$dbName] FROM  DISK = N'$backupFile' WITH  FILE = 1,  
+            MOVE N'$($logicalNames.data)' TO N'$($dataDefaultPath + $dbName + ".mdf")',  
+            MOVE N'$($logicalNames.log)' TO N'$($logDefaultPath + $dbName + "_Log.ldf")',  
             NOUNLOAD,
             REPLACE,
             STATS = 5
