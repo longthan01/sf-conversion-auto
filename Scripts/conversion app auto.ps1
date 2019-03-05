@@ -919,9 +919,19 @@ function restoreDb($backupFile, $dbName) {
             $dataDefaultPath = getSqlDefaultPath 'Data'
             $logDefaultPath = getSqlDefaultPath 'Log'
             $logicalNames = retrieveDatabaseLogicalNames $backupFile
+            $checkDbExistsQuery = @"
+            SELECT name 
+            FROM master.dbo.sysdatabases 
+            WHERE '[' + name + ']' ='$dbName' 
+            OR name = '$dbName'
+"@
             $restoreQuery = @"
             USE [master]
-            ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
+            GO
+            IF EXISTS($checkDbExistsQuery)
+            BEGIN
+                ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE
+            END
             GO
             RESTORE DATABASE [$dbName] FROM  DISK = N'$backupFile' WITH  FILE = 1,  
             MOVE N'$($logicalNames.data)' TO N'$($dataDefaultPath + $dbName + ".mdf")',  
