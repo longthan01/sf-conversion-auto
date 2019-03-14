@@ -1659,7 +1659,7 @@ function fillOutRecordCount () {
         UpdateFields "Claims" "*Claims*claims*" $UserWorksheet "post"
         UpdateFields "Claim Tasks" "*Claim Tasks*claims*" $UserWorksheet "post"
         UpdateFields "Claim Taks Documents" "*Claim Taks Documents*tasks_sub_tasks*" $UserWorksheet "post"
-        UpdateFields "Policies" "*Policies*policies*" $UserWorksheet "post"
+        UpdateFields "Policies" "*Policies* policies* pol_id*" $UserWorksheet "post"
         UpdateFields "Invoices" "*Invoices*policies*" $UserWorksheet "post"
         UpdateFields "Sunrise Policies" "*Sunrise Policies*sunrise_policies*" $UserWorksheet "post"
         UpdateFields "SVU Policies" "*SVU Policies*SVUPolicies*" $UserWorksheet "post"
