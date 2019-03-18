@@ -50,7 +50,11 @@ function getConfigFieldValue($config, $fieldName) {
     $value = $config[$fieldName]
     return $value
 }
-
+#utility variables
+$color_info = 'green'
+$color_warning = 'yellow'
+$color_error = 'red'
+$color_important = 'magenta'
 function wh($value = "", $color = $color_info, $newLine = 1) {
     if ([string]::IsNullOrEmpty($value)) {
         Write-Host
@@ -197,11 +201,7 @@ $conv_recordCountReportsFolder = "$conv_ledgerFolder\Run1\Record Counts"
 $conv_sunriseAuditResultPath = "$conv_ledgerFolder\boa-sunrise-audit\Output"
 $conv_svuAuditResultPath = "$conv_ledgerFolder\boa-svu-audit\Output"
 
-#utility variables
-$color_info = 'green'
-$color_warning = 'yellow'
-$color_error = 'red'
-$color_important = 'magenta'
+
 function printUsage() {
     wh "Params:"
     wh "-task"
